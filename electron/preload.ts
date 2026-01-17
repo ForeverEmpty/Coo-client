@@ -1,7 +1,19 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 
 // 暴露给 Vue 的全局 API
 contextBridge.exposeInMainWorld('electronAPI', {
-  platform: process.platform,
-  sayHello: () => console.log('Hello from Electron Preload!')
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  send: (channel: string, data?: any) => ipcRenderer.send(channel, data),
+  on: (channel: string, cb: any) => ipcRenderer.on(channel, (event, ...args) => cb(...args)),
+
+  log: {
+    info: (msg: string, ...args: any[]) =>
+      ipcRenderer.send('log-to-main', { level: 'info', message: msg, args }),
+    warn: (msg: string, ...args: any[]) =>
+      ipcRenderer.send('log-to-main', { level: 'warn', message: msg, args }),
+    error: (msg: string, ...args: any[]) =>
+      ipcRenderer.send('log-to-main', { level: 'error', message: msg, args }),
+  },
+  /* eslint-enable */
+  openLogFolder: () => ipcRenderer.send('open-log-folder-request'),
 })
