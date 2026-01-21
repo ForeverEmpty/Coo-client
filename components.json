@@ -4,13 +4,14 @@
   "typescript": true,
   "tailwind": {
     "config": "",
-    "css": "src/style.css",
+    "css": "src/assets/css/style.css",
     "baseColor": "neutral",
     "cssVariables": true,
     "prefix": ""
   },
   "iconLibrary": "lucide",
   "aliases": {
+    "@": "./src",
     "components": "@/components",
     "utils": "@/lib/utils",
     "ui": "@/components/ui",

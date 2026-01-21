@@ -17,6 +17,8 @@ export class LogService {
     log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}'
 
     log.initialize()
+
+    log.info('Log Service Init.')
   }
 
   /* eslint-disable @typescript-eslint/no-explicit-any */

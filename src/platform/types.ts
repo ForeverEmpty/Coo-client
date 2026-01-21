@@ -1,6 +1,9 @@
 export interface PlatformCapabilities {
   name: 'web' | 'electron' | 'mobile'
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  send: (channel: string, data?: any) => void
+
   app: {
     minimize(): void
     close(): void

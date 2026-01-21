@@ -1,11 +1,16 @@
+import { logger } from '@/utils/logger'
 import type { PlatformCapabilities } from '../types'
 
 export const WebProvider: PlatformCapabilities = {
   name: 'web',
 
+  send: (channel, data) => {
+    logger.info(`[Web Platform] 拦截到消息发送请求: ${channel}`, data)
+  },
+
   app: {
     minimize: () => {
-      console.warn('Web端不支持最小化操作')
+      logger.warn('Web端不支持最小化操作')
     },
     close: () => {
       if (window.history.length > 1) {
@@ -16,14 +21,14 @@ export const WebProvider: PlatformCapabilities = {
       }
     },
     exit: () => {
-      console.warn('Web端不支持直接退出应用')
+      logger.warn('Web端不支持直接退出应用')
     },
   },
 
   notification: {
     send: (title, body) => {
       if (!('Notification' in window)) {
-        console.warn('当前浏览器不支持桌面通知')
+        logger.warn('当前浏览器不支持桌面通知')
         return
       }
 

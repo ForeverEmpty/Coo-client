@@ -24,12 +24,12 @@ ipcMain.on('log-to-main', (_, { level, message, args }) => {
 app.whenReady().then(() => {
   logger.info('App is ready, creating login window...')
 
-  windowService.createWindow(WindowType.LOGIN, 'login')
+  windowService.createWindow(WindowType.LOGIN, '/auth/login')
 
   // 如果是 macOS，当图标被点击且没有窗口时重新创建
   app.on('activate', () => {
     if (app.getAppMetrics().length === 0) {
-      windowService.createWindow(WindowType.LOGIN, 'login')
+      windowService.createWindow(WindowType.LOGIN, '/auth/login')
     }
   })
 })
@@ -49,6 +49,11 @@ ipcMain.on('window-minimize', (event) => {
 ipcMain.on('window-close', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender)
   win?.close()
+})
+
+ipcMain.on('re-login', () => {
+  windowService.createWindow(WindowType.LOGIN, '/auth/login')
+  windowService.closeFilter((type) => type !== WindowType.LOGIN)
 })
 
 app.on('window-all-closed', () => {

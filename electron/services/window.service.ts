@@ -1,12 +1,52 @@
-import { BrowserWindow, type BrowserWindowConstructorOptions } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
+import type { BrowserWindowConstructorOptions, IpcMainEvent } from 'electron'
 import path from 'node:path'
 
-import { WindowPresets } from '@/electron/config/window.config'
+import { WindowPresets, WindowUrls } from '@/electron/config/window.config'
 import { WindowType } from '@/common/enum'
 import { logger } from './log.service'
 
 export class WindowService {
   private windowMap: Map<WindowType, BrowserWindow> = new Map()
+
+  constructor() {
+    this.registerIpcHandlers()
+    logger.info('Window Service Init.')
+  }
+
+  private registerIpcHandlers() {
+    // 1. 最小化
+    ipcMain.on('window-minimize', (event: IpcMainEvent) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      win?.minimize()
+    })
+
+    // 2. 最大化/还原 切换
+    ipcMain.on('window-maximize', (event: IpcMainEvent) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (win) {
+        if (win.isMaximized()) {
+          win.unmaximize()
+        } else {
+          win.maximize()
+        }
+      }
+    })
+
+    // 3. 关闭窗口
+    ipcMain.on('window-close', (event: IpcMainEvent) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      win?.close()
+    })
+
+    // 4. 隐藏窗口
+    ipcMain.on('window-hide', (event: IpcMainEvent) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      win?.hide()
+    })
+
+    logger.info('Window IPC Init.')
+  }
 
   createWindow(
     type: WindowType,
@@ -40,6 +80,12 @@ export class WindowService {
 
     const win = new BrowserWindow(finalOptions as BrowserWindowConstructorOptions)
 
+    routePath = routePath.replace(/^\/+/, '')
+
+    if (routePath === '') {
+      routePath = WindowUrls[type] || ''
+    }
+
     const url = process.env.VITE_DEV_SERVER_URL
       ? `${process.env.VITE_DEV_SERVER_URL}${routePath}`
       : `file://${path.join(__dirname, '../renderer/index.html')}${routePath}`
@@ -69,6 +115,18 @@ export class WindowService {
     if (win) {
       win.close()
     }
+  }
+
+  closeAll() {
+    this.windowMap.forEach((win) => win.close())
+  }
+
+  closeFilter(filter: (type: WindowType) => boolean) {
+    this.windowMap.forEach((win, type) => {
+      if (filter(type)) {
+        win.close()
+      }
+    })
   }
 
   /* eslint-disable @typescript-eslint/no-explicit-any */

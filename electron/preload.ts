@@ -1,10 +1,11 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 
 // 暴露给 Vue 的全局 API
 contextBridge.exposeInMainWorld('electronAPI', {
   /* eslint-disable @typescript-eslint/no-explicit-any */
   send: (channel: string, data?: any) => ipcRenderer.send(channel, data),
-  on: (channel: string, cb: any) => ipcRenderer.on(channel, (event, ...args) => cb(...args)),
+  on: (channel: string, cb: (event: IpcRendererEvent, ...args: any[]) => void) =>
+    ipcRenderer.on(channel, (event, ...args) => cb(event, ...args)),
 
   log: {
     info: (msg: string, ...args: any[]) =>

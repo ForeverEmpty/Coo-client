@@ -17,7 +17,7 @@ export const WindowPresets: Record<string, IWindowPreset> = {
   LOGIN: {
     ...commonOptions,
     width: 380,
-    height: 520,
+    height: 580,
     frame: false, // 无边框
     resizable: false, // 不可缩放
     transparent: true,
@@ -41,4 +41,8 @@ export const WindowPresets: Record<string, IWindowPreset> = {
     modal: true, // 模态窗口
     resizable: false,
   },
+}
+
+export const WindowUrls: Record<string, string> = {
+  LOGIN: '/auth/login',
 }

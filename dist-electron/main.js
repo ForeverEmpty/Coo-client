@@ -2533,6 +2533,7 @@ class LogService {
     log.transports.file.resolvePathFn = () => path.join(logFolder, "main.log");
     log.transports.file.format = "[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}";
     log.initialize();
+    log.info("Log Service Init.");
   }
   /* eslint-disable @typescript-eslint/no-explicit-any */
   debug(message, ...args) {
@@ -2566,7 +2567,7 @@ const WindowPresets = {
   LOGIN: {
     ...commonOptions,
     width: 380,
-    height: 520,
+    height: 580,
     frame: false,
     // 无边框
     resizable: false,
@@ -2597,6 +2598,9 @@ const WindowPresets = {
     resizable: false
   }
 };
+const WindowUrls = {
+  LOGIN: "/auth/login"
+};
 var WindowType = /* @__PURE__ */ ((WindowType2) => {
   WindowType2["LOGIN"] = "LOGIN";
   WindowType2["MAIN"] = "MAIN";
@@ -2605,6 +2609,35 @@ var WindowType = /* @__PURE__ */ ((WindowType2) => {
 })(WindowType || {});
 class WindowService {
   windowMap = /* @__PURE__ */ new Map();
+  constructor() {
+    this.registerIpcHandlers();
+    logger.info("Window Service Init.");
+  }
+  registerIpcHandlers() {
+    require$$0$5.ipcMain.on("window-minimize", (event) => {
+      const win = require$$0$5.BrowserWindow.fromWebContents(event.sender);
+      win?.minimize();
+    });
+    require$$0$5.ipcMain.on("window-maximize", (event) => {
+      const win = require$$0$5.BrowserWindow.fromWebContents(event.sender);
+      if (win) {
+        if (win.isMaximized()) {
+          win.unmaximize();
+        } else {
+          win.maximize();
+        }
+      }
+    });
+    require$$0$5.ipcMain.on("window-close", (event) => {
+      const win = require$$0$5.BrowserWindow.fromWebContents(event.sender);
+      win?.close();
+    });
+    require$$0$5.ipcMain.on("window-hide", (event) => {
+      const win = require$$0$5.BrowserWindow.fromWebContents(event.sender);
+      win?.hide();
+    });
+    logger.info("Window IPC Init.");
+  }
   createWindow(type, routePath = "", customOptions) {
     if (this.windowMap.has(type)) {
       const existingWin = this.windowMap.get(type);
@@ -2627,6 +2660,10 @@ class WindowService {
       }
     }
     const win = new require$$0$5.BrowserWindow(finalOptions);
+    routePath = routePath.replace(/^\/+/, "");
+    if (routePath === "") {
+      routePath = WindowUrls[type] || "";
+    }
     const url = process.env.VITE_DEV_SERVER_URL ? `${process.env.VITE_DEV_SERVER_URL}${routePath}` : `file://${path.join(__dirname, "../renderer/index.html")}${routePath}`;
     win.loadURL(url);
     win.once("ready-to-show", () => {
@@ -2648,6 +2685,16 @@ class WindowService {
     if (win) {
       win.close();
     }
+  }
+  closeAll() {
+    this.windowMap.forEach((win) => win.close());
+  }
+  closeFilter(filter) {
+    this.windowMap.forEach((win, type) => {
+      if (filter(type)) {
+        win.close();
+      }
+    });
   }
   /* eslint-disable @typescript-eslint/no-explicit-any */
   send(type, channel, data) {
@@ -2677,10 +2724,10 @@ require$$0$5.ipcMain.on("log-to-main", (_, { level, message, args }) => {
 });
 require$$0$5.app.whenReady().then(() => {
   logger.info("App is ready, creating login window...");
-  windowService.createWindow(WindowType.LOGIN, "login");
+  windowService.createWindow(WindowType.LOGIN, "/auth/login");
   require$$0$5.app.on("activate", () => {
     if (require$$0$5.app.getAppMetrics().length === 0) {
-      windowService.createWindow(WindowType.LOGIN, "login");
+      windowService.createWindow(WindowType.LOGIN, "/auth/login");
     }
   });
 });
@@ -2695,6 +2742,10 @@ require$$0$5.ipcMain.on("window-minimize", (event) => {
 require$$0$5.ipcMain.on("window-close", (event) => {
   const win = require$$0$5.BrowserWindow.fromWebContents(event.sender);
   win?.close();
+});
+require$$0$5.ipcMain.on("re-login", () => {
+  windowService.createWindow(WindowType.LOGIN, "/auth/login");
+  windowService.closeFilter((type) => type !== WindowType.LOGIN);
 });
 require$$0$5.app.on("window-all-closed", () => {
   if (process.platform !== "darwin") require$$0$5.app.quit();
