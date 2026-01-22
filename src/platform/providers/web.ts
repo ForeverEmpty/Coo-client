@@ -12,6 +12,9 @@ export const WebProvider: PlatformCapabilities = {
     minimize: () => {
       logger.warn('Web端不支持最小化操作')
     },
+    maximize: () => {
+      logger.warn('Web端不支持最大化操作')
+    },
     close: () => {
       if (window.history.length > 1) {
         window.history.back()

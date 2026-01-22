@@ -30,10 +30,11 @@ export const WindowPresets: Record<string, IWindowPreset> = {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    frame: true, // 有边框
+    frame: false, // 无边框
     resizable: true,
+    hasShadow: true,
   },
-  SETTINGS: {
+  DIALOG: {
     ...commonOptions,
     width: 600,
     height: 450,

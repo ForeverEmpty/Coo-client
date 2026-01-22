@@ -2583,11 +2583,12 @@ const WindowPresets = {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    frame: true,
-    // 有边框
-    resizable: true
+    frame: false,
+    // 无边框
+    resizable: true,
+    hasShadow: true
   },
-  SETTINGS: {
+  DIALOG: {
     ...commonOptions,
     width: 600,
     height: 450,
@@ -2604,7 +2605,7 @@ const WindowUrls = {
 var WindowType = /* @__PURE__ */ ((WindowType2) => {
   WindowType2["LOGIN"] = "LOGIN";
   WindowType2["MAIN"] = "MAIN";
-  WindowType2["SETTINGS"] = "SETTINGS";
+  WindowType2["DIALOG"] = "DIALOG";
   return WindowType2;
 })(WindowType || {});
 class WindowService {
@@ -2724,7 +2725,7 @@ require$$0$5.ipcMain.on("log-to-main", (_, { level, message, args }) => {
 });
 require$$0$5.app.whenReady().then(() => {
   logger.info("App is ready, creating login window...");
-  windowService.createWindow(WindowType.LOGIN, "/auth/login");
+  windowService.createWindow(WindowType.MAIN, "");
   require$$0$5.app.on("activate", () => {
     if (require$$0$5.app.getAppMetrics().length === 0) {
       windowService.createWindow(WindowType.LOGIN, "/auth/login");

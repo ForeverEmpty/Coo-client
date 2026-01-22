@@ -43,15 +43,15 @@ const handleLogin = async () => {
   loading.value = true
 
   try {
-    await authApi.login(loginForm).then(() => {
-      loading.value = false
-      toast.success('登录成功')
-      if (isElectron) {
-        p.send('login-success')
-        return
-      }
-      router.push('/')
-    })
+    const res = await authApi.login(loginForm)
+    loading.value = false
+    localStorage.setItem('coo_token', res.data)
+    toast.success('登录成功')
+    if (isElectron) {
+      p.send('login-success')
+      return
+    }
+    router.push('/')
   } catch (error) {
     loading.value = false
     logger.error('Login failed', error)

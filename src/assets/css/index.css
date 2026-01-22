@@ -1,10 +1,14 @@
 @import 'tailwindcss';
-@import "tw-animate-css";
+@import 'tw-animate-css';
 
 @import './style.css';
 
 button,
 input,
 a {
+  -webkit-app-region: no-drag;
+}
+
+.no-drag {
   -webkit-app-region: no-drag;
 }

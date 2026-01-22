@@ -5,7 +5,30 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      component: () => import('@/views/IndexView.vue'),
+      component: () => import('@/layouts/MainLayout.vue'),
+      redirect: '/chat',
+      children: [
+        {
+          path: 'profile/:id',
+          name: 'Profile',
+          component: () => import('@/views/profile/ProfileView.vue'),
+        },
+        {
+          path: 'chat',
+          name: 'Chat',
+          component: () => import('@/views/chat/ChatView.vue'),
+        },
+        {
+          path: 'contacts',
+          name: 'Contacts',
+          component: () => import('@/views/contacts/ContactsView.vue'),
+        },
+        {
+          path: 'settings',
+          name: 'Settings',
+          component: () => import('@/views/settings/SettingsView.vue'),
+        },
+      ],
     },
     {
       path: '/auth',

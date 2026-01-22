@@ -24,7 +24,8 @@ ipcMain.on('log-to-main', (_, { level, message, args }) => {
 app.whenReady().then(() => {
   logger.info('App is ready, creating login window...')
 
-  windowService.createWindow(WindowType.LOGIN, '/auth/login')
+  //windowService.createWindow(WindowType.LOGIN, '/auth/login')
+  windowService.createWindow(WindowType.MAIN, '')
 
   // 如果是 macOS，当图标被点击且没有窗口时重新创建
   app.on('activate', () => {

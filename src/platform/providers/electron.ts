@@ -7,6 +7,7 @@ export const ElectronProvider: PlatformCapabilities = {
 
   app: {
     minimize: () => window.electronAPI?.send('window-minimize'),
+    maximize: () => window.electronAPI?.send('window-maximize'),
     close: () => window.electronAPI?.send('window-close'),
     exit: () => window.electronAPI?.send('app-exit'),
   },

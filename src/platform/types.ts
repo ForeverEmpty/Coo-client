@@ -6,6 +6,7 @@ export interface PlatformCapabilities {
 
   app: {
     minimize(): void
+    maximize(): void
     close(): void
     exit(): void
   }

@@ -11,3 +11,18 @@ export interface PageResult<T> {
   pageNum: number
   pageSize: number
 }
+
+export interface UserInfo {
+  id: string
+  username: string
+  nickname: string
+  avatar: string | null
+  signature?: string
+  status: number
+  createTime: string
+  isMe?: boolean
+  gender?: 'male' | 'female' | 'unknown'
+  birth?: string
+  region?: string
+  job?: string
+}
