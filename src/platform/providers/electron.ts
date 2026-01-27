@@ -10,6 +10,8 @@ export const ElectronProvider: PlatformCapabilities = {
     maximize: () => window.electronAPI?.send('window-maximize'),
     close: () => window.electronAPI?.send('window-close'),
     exit: () => window.electronAPI?.send('app-exit'),
+    setLoginCache: (data) => window.electronAPI.send('set-login-cache', data),
+    getLoginCache: () => window.electronAPI.invoke('get-login-cache'),
   },
 
   notification: {

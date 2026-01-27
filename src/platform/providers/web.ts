@@ -26,6 +26,13 @@ export const WebProvider: PlatformCapabilities = {
     exit: () => {
       logger.warn('Web端不支持直接退出应用')
     },
+    setLoginCache: (data) => {
+      localStorage.setItem('loginCache', JSON.stringify(data))
+    },
+    getLoginCache: async () => {
+      const cache = localStorage.getItem('loginCache')
+      return cache ? JSON.parse(cache) : null
+    },
   },
 
   notification: {

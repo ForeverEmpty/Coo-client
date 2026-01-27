@@ -9,6 +9,8 @@ export interface PlatformCapabilities {
     maximize(): void
     close(): void
     exit(): void
+    setLoginCache(data: { username: string; password?: string; remember: boolean }): void
+    getLoginCache(): Promise<{ username: string; password?: string } | null>
   }
 
   notification: {

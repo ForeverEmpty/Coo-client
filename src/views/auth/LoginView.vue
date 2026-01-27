@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { MessageCircle, Loader2 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import { useRouter } from 'vue-router'
@@ -25,6 +25,7 @@ useRequestManager()
 const loading = ref(false)
 const userValid = ref(false)
 const passValid = ref(false)
+const remember = ref(false)
 
 const userPattern = /^[a-zA-Z0-9][a-zA-Z0-9_]{3,15}$/
 const passPattern = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,20}$/
@@ -47,6 +48,15 @@ const handleLogin = async () => {
     loading.value = false
     localStorage.setItem('coo_token', res.data)
     toast.success('登录成功')
+
+    if (remember.value) {
+      p.app.setLoginCache({
+        username: loginForm.username,
+        password: remember.value && isElectron ? loginForm.password : '',
+        remember: remember.value,
+      })
+    }
+
     if (isElectron) {
       p.send('login-success')
       return
@@ -57,6 +67,15 @@ const handleLogin = async () => {
     logger.error('Login failed', error)
   }
 }
+
+onMounted(async () => {
+  const loginCache = await p.app.getLoginCache()
+  if (loginCache) {
+    loginForm.username = loginCache.username
+    loginForm.password = loginCache.password || ''
+    remember.value = !!loginCache.password
+  }
+})
 </script>
 
 <template>
@@ -96,7 +115,7 @@ const handleLogin = async () => {
       </div>
       <div class="flex items-center justify-between text-xs text-muted-foreground">
         <label class="flex items-center gap-1 cursor-pointer">
-          <input type="checkbox" class="rounded border-gray-300" /> 记住密码
+          <input v-model="remember" type="checkbox" class="rounded border-gray-300" /> 记住密码
         </label>
         <a href="#" class="hover:text-primary">忘记密码？</a>
       </div>

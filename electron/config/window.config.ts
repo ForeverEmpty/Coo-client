@@ -46,4 +46,5 @@ export const WindowPresets: Record<string, IWindowPreset> = {
 
 export const WindowUrls: Record<string, string> = {
   LOGIN: '/auth/login',
+  MAIN: '/',
 }

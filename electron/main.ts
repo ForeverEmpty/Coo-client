@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, ipcMain } from 'electron'
 
 import { logger } from './services/log.service'
 import { windowService } from './services/window.service'
 import { WindowType } from '@/common/enum'
+import { storageService } from './services/stroge.service'
 
 ipcMain.on('log-to-main', (_, { level, message, args }) => {
   const prefix = `[Renderer] `
@@ -24,37 +25,33 @@ ipcMain.on('log-to-main', (_, { level, message, args }) => {
 app.whenReady().then(() => {
   logger.info('App is ready, creating login window...')
 
-  //windowService.createWindow(WindowType.LOGIN, '/auth/login')
-  windowService.createWindow(WindowType.MAIN, '')
+  windowService.createWindow(WindowType.LOGIN)
+  //windowService.createWindow(WindowType.MAIN)
 
   // 如果是 macOS，当图标被点击且没有窗口时重新创建
   app.on('activate', () => {
     if (app.getAppMetrics().length === 0) {
-      windowService.createWindow(WindowType.LOGIN, '/auth/login')
+      windowService.createWindow(WindowType.LOGIN)
     }
   })
 })
 
 ipcMain.on('login-success', () => {
-  windowService.createWindow(WindowType.MAIN, '')
+  windowService.createWindow(WindowType.MAIN)
   windowService.close(WindowType.LOGIN)
 })
 
-// 最小化窗口
-ipcMain.on('window-minimize', (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender)
-  win?.minimize()
-})
-
-// 关闭窗口
-ipcMain.on('window-close', (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender)
-  win?.close()
-})
-
 ipcMain.on('re-login', () => {
-  windowService.createWindow(WindowType.LOGIN, '/auth/login')
+  windowService.createWindow(WindowType.LOGIN)
   windowService.closeFilter((type) => type !== WindowType.LOGIN)
+})
+
+ipcMain.on('set-login-cache', (_, data) => {
+  storageService.saveLogin(data.username, data.password, data.remember)
+})
+
+ipcMain.handle('get-login-cache', () => {
+  return storageService.getLogin()
 })
 
 app.on('window-all-closed', () => {

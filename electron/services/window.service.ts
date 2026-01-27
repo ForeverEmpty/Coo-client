@@ -80,11 +80,11 @@ export class WindowService {
 
     const win = new BrowserWindow(finalOptions as BrowserWindowConstructorOptions)
 
-    routePath = routePath.replace(/^\/+/, '')
-
     if (routePath === '') {
       routePath = WindowUrls[type] || ''
     }
+
+    routePath = routePath.replace(/^\/+/, '')
 
     const url = process.env.VITE_DEV_SERVER_URL
       ? `${process.env.VITE_DEV_SERVER_URL}${routePath}`

@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   send: (channel: string, data?: any) => ipcRenderer.send(channel, data),
   on: (channel: string, cb: (event: IpcRendererEvent, ...args: any[]) => void) =>
     ipcRenderer.on(channel, (event, ...args) => cb(event, ...args)),
+  invoke: (channel: string, data?: any) => ipcRenderer.invoke(channel, data),
 
   log: {
     info: (msg: string, ...args: any[]) =>

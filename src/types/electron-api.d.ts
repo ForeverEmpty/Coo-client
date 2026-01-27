@@ -2,6 +2,7 @@ export interface IElectronAPI {
   /* eslint-disable @typescript-eslint/no-explicit-any */
   send: (channel: string, data?: any) => void
   on: (channel: string, callback: (event: any, ...args: any[]) => void) => void
+  invoke: (channel: string, data?: any) => Promise<any>
 
   log: {
     info: (msg: string, ...args: any[]) => void
