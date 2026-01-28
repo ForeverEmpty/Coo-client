@@ -15,11 +15,9 @@ import { Button } from '@/components/ui/button'
 import { ValidatedInput } from '@/components/ui/validated-input'
 import { Input } from '@/components/ui/input'
 import { authApi } from '@/api/auth'
-import { useRequestManager } from '@/composables/useRequestManager'
 import { logger } from '@/utils/logger'
 
 const router = useRouter()
-useRequestManager()
 
 const loading = ref(false)
 const userValid = ref(false)

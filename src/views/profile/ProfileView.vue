@@ -28,20 +28,19 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 
-import InfoItem from '@/components/InfoItem.vue'
-import ProfileSection from '@/components/ProfileSection.vue'
-import EditProfileDialog from '@/components/EditProfileDialog.vue'
-import PrivacyDialog from '@/components/PrivacyDialog.vue'
+import InfoItem from '@/views/profile/components/InfoItem.vue'
+import ProfileSection from '@/views/profile/components/ProfileSection.vue'
+import EditProfileDialog from '@/views/profile/components/EditProfileDialog.vue'
+import PrivacyDialog from '@/views/profile/components/PrivacyDialog.vue'
 
 import { authApi } from '@/api/auth'
 import { fileApi } from '@/api/file'
 import type { UserInfo } from '@/api/types'
 import { calculateAge } from '@/utils/calculateAge'
-import { useRequestManager } from '@/composables/useRequestManager'
 
 const route = useRoute()
 const router = useRouter()
-useRequestManager()
+
 
 const loading = ref(true)
 const userInfo = ref<UserInfo | null>(null)

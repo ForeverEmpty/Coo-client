@@ -15,7 +15,7 @@ const chats = Array.from({ length: 15 }).map((_, i) => ({
 </script>
 
 <template>
-  <section class="w-80 border-r flex flex-col bg-card/10 h-full overflow-hidden">
+  <section class="border-r flex flex-col bg-card/10 h-full overflow-hidden">
     <!-- 搜索栏 -->
     <div class="p-4 shrink-0">
       <h2 class="text-xl font-bold mb-4">消息</h2>

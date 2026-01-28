@@ -1,11 +1,22 @@
 <script setup lang="ts">
 import { Minus, Square, X } from 'lucide-vue-next'
+import { computed, defineAsyncComponent } from 'vue'
+import { useRoute } from 'vue-router'
 
 import { Button } from '@/components/ui/button'
 import { usePlatform } from '@/composables/usePlatform'
 import Sidebar from '@/components/Sidebar.vue'
 
 const { p, isElectron } = usePlatform()
+
+const ImLayout = defineAsyncComponent(() => import('@/layouts/fragments/ImLayout.vue'))
+const FullPageLayout = defineAsyncComponent(() => import('@/layouts/fragments/FullPageLayout.vue'))
+
+const route = useRoute()
+
+const activeLayout = computed(() => {
+  return route.meta.layout === 'im' ? ImLayout : FullPageLayout
+})
 
 const handleMinimize = () => p.app?.minimize()
 const handleMaximize = () => p.app?.maximize()
@@ -51,11 +62,7 @@ const handleClose = () => p.app?.close()
       </header>
 
       <main class="flex-1 overflow-hidden relative">
-        <RouterView v-slot="{ Component }">
-          <Transition name="fade" mode="out-in">
-            <component :is="Component" />
-          </Transition>
-        </RouterView>
+        <component :is="activeLayout" />
       </main>
     </div>
   </div>

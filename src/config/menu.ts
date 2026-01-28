@@ -1,4 +1,3 @@
-// src/config/menu.ts
 import { MessageSquare, Users, Compass, Settings, LayoutGrid } from 'lucide-vue-next'
 import type { FunctionalComponent } from 'vue'
 

@@ -36,6 +36,13 @@ export interface UserInfo {
   publicMutualFriend?: boolean
 }
 
+export interface UserSimple {
+  id: string
+  username: string
+  nickname: string
+  avatar?: string
+}
+
 export interface PrivacySettings {
   publicBirthday?: boolean
   publicRegion?: boolean
@@ -69,4 +76,38 @@ export interface ProtocolModel<T = any> {
   type: MessageType
   sequence: string
   data?: T
+}
+
+export interface Friend extends UserSimple {
+  remark?: string
+  showName: string
+  groupId: string
+}
+
+export interface FriendGroup {
+  groupId: string
+  groupName: string
+  children: Friend[]
+}
+
+export interface FriendApply {
+  id: string
+  fromId: string
+  nickname: string
+  avatar?: string
+  msg: string
+  status: 0 | 1 | 2
+  createTime: string
+}
+
+export interface ApplyParams {
+  targetId: string
+  msg: string
+  remark?: string
+}
+
+export interface AuditParams {
+  applyId: string
+  status: 1 | 2
+  remark?: string
 }

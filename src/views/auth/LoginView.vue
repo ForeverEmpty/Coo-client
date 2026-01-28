@@ -15,12 +15,10 @@ import { Button } from '@/components/ui/button'
 import { ValidatedInput } from '@/components/ui/validated-input'
 import { usePlatform } from '@/composables/usePlatform'
 import { authApi } from '@/api/auth'
-import { useRequestManager } from '@/composables/useRequestManager'
 import { logger } from '@/utils/logger'
 
 const { p, isElectron } = usePlatform()
 const router = useRouter()
-useRequestManager()
 
 const loading = ref(false)
 const userValid = ref(false)

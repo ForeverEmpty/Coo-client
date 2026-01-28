@@ -11,21 +11,25 @@ const router = createRouter({
         {
           path: 'profile/:id',
           name: 'Profile',
+          meta: { layout: 'full' },
           component: () => import('@/views/profile/ProfileView.vue'),
         },
         {
           path: 'chat',
           name: 'Chat',
+          meta: { layout: 'im' },
           component: () => import('@/views/chat/ChatView.vue'),
         },
         {
           path: 'contacts',
           name: 'Contacts',
+          meta: { layout: 'im' },
           component: () => import('@/views/contacts/ContactsView.vue'),
         },
         {
           path: 'settings',
           name: 'Settings',
+          meta: { layout: 'full' },
           component: () => import('@/views/settings/SettingsView.vue'),
         },
       ],
