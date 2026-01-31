@@ -3,7 +3,6 @@ import { app, ipcMain } from 'electron'
 import { logger } from './services/log.service'
 import { windowService } from './services/window.service'
 import { WindowType } from '@/common/enum'
-import { storageService } from './services/stroge.service'
 
 ipcMain.on('log-to-main', (_, { level, message, args }) => {
   const prefix = `[Renderer] `
@@ -34,24 +33,6 @@ app.whenReady().then(() => {
       windowService.createWindow(WindowType.LOGIN)
     }
   })
-})
-
-ipcMain.on('login-success', () => {
-  windowService.createWindow(WindowType.MAIN)
-  windowService.close(WindowType.LOGIN)
-})
-
-ipcMain.on('re-login', () => {
-  windowService.createWindow(WindowType.LOGIN)
-  windowService.closeFilter((type) => type !== WindowType.LOGIN)
-})
-
-ipcMain.on('set-login-cache', (_, data) => {
-  storageService.saveLogin(data.username, data.password, data.remember)
-})
-
-ipcMain.handle('get-login-cache', () => {
-  return storageService.getLogin()
 })
 
 app.on('window-all-closed', () => {

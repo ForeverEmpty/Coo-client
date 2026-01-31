@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { useChatStore } from '@/stores/chatStore'
 import { Resizer } from '@/components/common/resizer'
-import ChatWindow from '@/views/components/ChatWindow.vue'
+import ChatWindow from '@/components/ChatWindow.vue'
 
 const chatStore = useChatStore()
 const listWidth = ref(320)

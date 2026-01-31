@@ -42,9 +42,22 @@ export const WindowPresets: Record<string, IWindowPreset> = {
     modal: true, // 模态窗口
     resizable: false,
   },
+  SEARCH_ADD: {
+    ...commonOptions,
+    width: 600,
+    height: 480,
+    minWidth: 600,
+    minHeight: 480,
+    frame: false,
+    resizable: true,
+    parent: 'MAIN',
+    modal: false,
+    title: '添加',
+  },
 }
 
 export const WindowUrls: Record<string, string> = {
   LOGIN: '/auth/login',
   MAIN: '/',
+  SEARCH_ADD: '/contacts/add',
 }

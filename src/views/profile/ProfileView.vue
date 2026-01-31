@@ -41,7 +41,6 @@ import { calculateAge } from '@/utils/calculateAge'
 const route = useRoute()
 const router = useRouter()
 
-
 const loading = ref(true)
 const userInfo = ref<UserInfo | null>(null)
 const showEditProfileDialog = ref(false)
@@ -54,6 +53,7 @@ const genderIconMap: Record<number, FunctionalComponent> = {
 }
 
 const isSelf = computed(() => route.params.id === 'me' || userInfo.value?.isMe)
+const showMutualFriends = computed(() => !isSelf.value && userInfo.value?.publicMutualFriend)
 const age = computed(() => calculateAge(userInfo.value?.birthday))
 const genderIcon = computed(() => genderIconMap[userInfo.value?.gender || 0])
 
@@ -117,6 +117,12 @@ const onBackgroundClick = () => {
     }
   }
   input.click()
+}
+
+const copyText = (text: string) => {
+  if (!text) return
+  navigator.clipboard.writeText(text)
+  toast.success('已复制')
 }
 
 watch(() => route.params.id, loadData)
@@ -202,7 +208,10 @@ onMounted(loadData)
                     <component :is="genderIcon" class="h-5 w-5 text-foreground/50" />
                   </div>
                   <div class="flex items-center justify-center md:justify-start gap-3">
-                    <p class="text-muted-foreground flex items-center gap-1 text-sm">
+                    <p
+                      class="text-muted-foreground flex items-center gap-1 text-sm cursor-pointer"
+                      @click="copyText(userInfo?.username || '')"
+                    >
                       <Hash class="h-3.5 w-3.5" /> {{ userInfo?.username }}
                     </p>
                     <Badge variant="secondary" class="text-[10px] h-5">正式用户</Badge>
@@ -270,7 +279,13 @@ onMounted(loadData)
 
         <!-- 4. 额外功能区 (使用封装组件) -->
         <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <ProfileSection title="最近动态" :icon="ImageIcon" show-action class="md:col-span-2">
+          <!-- 动态绑定 class -->
+          <ProfileSection
+            title="最近动态"
+            :icon="ImageIcon"
+            show-action
+            :class="[showMutualFriends ? 'md:col-span-2' : 'md:col-span-3']"
+          >
             <div class="grid grid-cols-4 gap-2">
               <div
                 v-for="i in 4"
@@ -282,7 +297,8 @@ onMounted(loadData)
             </div>
           </ProfileSection>
 
-          <ProfileSection title="共同好友" :icon="Users">
+          <!-- 共同好友模块 -->
+          <ProfileSection v-if="showMutualFriends" title="共同好友" :icon="Users">
             <div class="flex -space-x-3 overflow-hidden">
               <Avatar
                 v-for="i in 5"
@@ -305,7 +321,9 @@ onMounted(loadData)
         <div class="mt-8 flex justify-center gap-4 text-[11px] text-muted-foreground opacity-50">
           <span class="flex items-center gap-1"><ShieldCheck class="h-3 w-3" /> 数据已加密</span>
           <span>•</span>
-          <span>Coo Chat ID: {{ userInfo?.id }}</span>
+          <span class="cursor-pointer" @click="copyText(userInfo?.id || '')">
+            Coo Chat ID: {{ userInfo?.id }}
+          </span>
         </div>
       </div>
     </div>

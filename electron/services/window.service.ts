@@ -5,6 +5,7 @@ import path from 'node:path'
 import { WindowPresets, WindowUrls } from '@/electron/config/window.config'
 import { WindowType } from '@/common/enum'
 import { logger } from './log.service'
+import { storageService } from './stroge.service'
 
 export class WindowService {
   private windowMap: Map<WindowType, BrowserWindow> = new Map()
@@ -43,6 +44,28 @@ export class WindowService {
     ipcMain.on('window-hide', (event: IpcMainEvent) => {
       const win = BrowserWindow.fromWebContents(event.sender)
       win?.hide()
+    })
+
+    ipcMain.on('login-success', () => {
+      this.createWindow(WindowType.MAIN)
+      this.close(WindowType.LOGIN)
+    })
+
+    ipcMain.on('re-login', () => {
+      this.createWindow(WindowType.LOGIN)
+      this.closeFilter((type) => type !== WindowType.LOGIN)
+    })
+
+    ipcMain.on('set-login-cache', (_, data) => {
+      storageService.saveLogin(data.username, data.password, data.remember)
+    })
+
+    ipcMain.handle('get-login-cache', () => {
+      return storageService.getLogin()
+    })
+
+    ipcMain.on('open-search-window', () => {
+      this.createWindow(WindowType.SEARCH_ADD)
     })
 
     logger.info('Window IPC Init.')

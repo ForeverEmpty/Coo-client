@@ -12,6 +12,7 @@ export interface PageResult<T> {
   total: number
   pageNum: number
   pageSize: number
+  hasMore: boolean
 }
 
 export interface UserInfo {
@@ -25,15 +26,15 @@ export interface UserInfo {
 
   isMe?: boolean
   gender?: number
-  publicGender?: boolean
+  publicGender: boolean
   birthday?: string
-  publicBirthday?: boolean
+  publicBirthday: boolean
   region?: string
-  publicRegion?: boolean
+  publicRegion: boolean
   job?: string
-  publicJob?: boolean
+  publicJob: boolean
   backgroundUrl?: string
-  publicMutualFriend?: boolean
+  publicMutualFriend: boolean
 }
 
 export interface UserSimple {
@@ -44,6 +45,7 @@ export interface UserSimple {
 }
 
 export interface PrivacySettings {
+  publicGender?: boolean
   publicBirthday?: boolean
   publicRegion?: boolean
   publicJob?: boolean

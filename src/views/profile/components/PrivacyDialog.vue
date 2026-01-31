@@ -17,6 +17,7 @@ const props = defineProps<{ open: boolean; initialData: UserInfo | null }>()
 const emit = defineEmits(['update:open', 'changed'])
 
 const settings = reactive({
+  publicGender: true,
   publicBirthday: true,
   publicRegion: true,
   publicJob: true,
@@ -27,10 +28,11 @@ watch(
   () => props.open,
   (newVal) => {
     if (newVal && props.initialData) {
-      settings.publicBirthday = props.initialData.publicBirthday ?? true
-      settings.publicRegion = props.initialData.publicRegion ?? true
-      settings.publicJob = props.initialData.publicJob ?? true
-      settings.publicMutualFriend = props.initialData.publicMutualFriend ?? true
+      settings.publicGender = props.initialData.publicGender
+      settings.publicBirthday = props.initialData.publicBirthday
+      settings.publicRegion = props.initialData.publicRegion
+      settings.publicJob = props.initialData.publicJob
+      settings.publicMutualFriend = props.initialData.publicMutualFriend
     }
   },
 )
@@ -55,6 +57,13 @@ const togglePrivacy = async (key: keyof typeof settings, val: boolean) => {
         <DialogDescription>请在此设置您的隐私选项。</DialogDescription>
       </DialogHeader>
       <div class="space-y-6 py-4">
+        <div class="flex items-center justify-between">
+          <Label>公开性别</Label>
+          <Switch
+            :modelValue="settings.publicGender"
+            @update:modelValue="(v: boolean) => togglePrivacy('publicGender', v)"
+          />
+        </div>
         <div class="flex items-center justify-between">
           <Label>公开生日</Label>
           <Switch

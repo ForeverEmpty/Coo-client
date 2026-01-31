@@ -35,6 +35,11 @@ const router = createRouter({
       ],
     },
     {
+      path: '/contacts/add',
+      name: 'AddContact',
+      component: () => import('@/views/contacts/SearchAddView.vue'),
+    },
+    {
       path: '/auth',
       component: () => import('@/layouts/AuthLayout.vue'),
       children: [

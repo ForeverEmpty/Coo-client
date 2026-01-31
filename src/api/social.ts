@@ -4,13 +4,16 @@ import type {
   AuditParams,
   FriendApply,
   FriendGroup,
+  PageResult,
   Result,
   UserSimple,
 } from './types'
 
 export const socialApi = {
-  searchUser: (keyword: string) =>
-    request.get<Result<UserSimple[]>>('social/friend/search', { params: { keyword } }),
+  searchGlobal: (keyword: string, pageNum: number, pageSize: number) =>
+    request.get<Result<PageResult<UserSimple>>>('social/friend/search/global', {
+      params: { keyword, pageNum, pageSize },
+    }),
 
   getFriendList: () => request.get<Result<FriendGroup[]>>('social/friend/list'),
 

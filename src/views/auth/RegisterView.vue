@@ -26,7 +26,7 @@ const passValid = ref(false)
 const confirmValid = ref(false)
 
 const userPattern = /^[a-zA-Z0-9][a-zA-Z0-9_]{3,15}$/
-const nickPattern = /^[a-zA-Z0-9\u4e00-\u9fa5]{2,10}$/
+const nickPattern = /^[a-zA-Z0-9\u4e00-\u9fa5]{0,10}$/
 const passPattern = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,20}$/
 
 const userRules = computed(() => ({
@@ -152,7 +152,7 @@ const getCode = () => {
               ]"
             >
               <component :is="getRuleIcon(nickRules.valid)" class="h-3.5 w-3.5 mr-2" />
-              2-10位字符，支持中英文、数字
+              0-10位字符，支持中英文、数字
             </span>
           </template>
         </ValidatedInput>
