@@ -179,10 +179,11 @@ onMounted(() => {
           </button>
         </div>
 
-        <div v-else-if="apply.status === 3" class="shrink-0">
+        <div v-else-if="apply.status === 3" class="flex flex-col items-end gap-1.5 shrink-0">
+          <span class="text-xs text-muted-foreground">已忽略</span>
           <button
             @click.stop="handleUnignore(apply.id)"
-            class="text-xs text-primary hover:text-primary/80 transition-colors"
+            class="text-xs text-primary hover:text-primary/80 hover:underline transition-all"
           >
             取消忽略
           </button>

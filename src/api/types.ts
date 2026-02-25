@@ -3,7 +3,7 @@ import type { ContentType, MessageType } from './enum'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface Result<T = any> {
   code: number
-  msg: string
+  message: string
   data: T
 }
 

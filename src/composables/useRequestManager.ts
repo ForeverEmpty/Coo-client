@@ -26,7 +26,7 @@ export function useRequestManager() {
       return
     }
 
-    router.push('/login')
+    router.push('/auth/login')
   })
 
   const unSubTimeout = requestObserver.onTimeout(() => {

@@ -12,9 +12,10 @@ export const authApi = {
 
   getUserById: (id: string) => request.get<Result<UserInfo>>(`auth/info/${id}`),
 
-  updateAvatar: (url: string) => request.post<Result<string>>('auth/avatar/update', { url }),
+  updateAvatar: (url: string) => request.post<Result<string>>('auth/avatar/update', { avatar: url }),
 
-  updateBackground: (url: string) => request.post<Result<string>>('auth/background/update', { url }),
+  updateBackground: (url: string) =>
+    request.post<Result<string>>('auth/background/update', { background: url }),
 
   updatePrivacy: (settings: PrivacySettings) => request.post<Result<string>>('auth/privacy/update', settings),
 

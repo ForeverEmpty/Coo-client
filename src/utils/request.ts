@@ -38,7 +38,7 @@ request.interceptors.response.use(
     }
 
     if (res.code === 401) {
-      requestObserver.emit('UNAUTHORIZED', { message: res.msg, code: res.code })
+      requestObserver.emit('UNAUTHORIZED', { message: res.message, code: res.code })
     } else {
       requestObserver.emit('ERROR', { message: res.message, code: res.code })
     }
