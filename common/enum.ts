@@ -3,4 +3,6 @@ export enum WindowType {
   MAIN = 'MAIN',
   DIALOG = 'DIALOG',
   SEARCH_ADD = 'SEARCH_ADD',
+  USER_DETAIL = 'USER_DETAIL',
+  FRIEND_APPLY = 'FRIEND_APPLY',
 }

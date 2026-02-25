@@ -82,16 +82,21 @@ const onAvatarClick = () => {
   input.onchange = async (e: Event) => {
     const file = (e.target as HTMLInputElement).files?.[0]
     if (!file) return
-    const tid = toast.loading('上传中...')
+    const tid = toast.loading('上传中... 0%')
 
     try {
-      const { data: url } = await fileApi.upload(file)
+      const { data: url } = await fileApi.upload(
+        file,
+        (progress) => {
+          toast.loading(`上传中... ${progress}%`, { id: tid })
+        },
+        { skipErrorHandler: true },
+      )
       await authApi.updateAvatar(url)
       if (userInfo.value) userInfo.value.avatar = url
       toast.success('更新成功', { id: tid })
     } catch {
-      // 由 useRequestManager 处理
-      toast.error('', { id: tid })
+      toast.error('上传失败，请重试', { id: tid })
     }
   }
   input.click()
@@ -105,15 +110,21 @@ const onBackgroundClick = () => {
   input.onchange = async (e: Event) => {
     const file = (e.target as HTMLInputElement).files?.[0]
     if (!file) return
-    const tid = toast.loading('正在更换背景...')
+    const tid = toast.loading('正在更换背景... 0%')
 
     try {
-      const { data: url } = await fileApi.upload(file)
+      const { data: url } = await fileApi.upload(
+        file,
+        (progress) => {
+          toast.loading(`正在更换背景... ${progress}%`, { id: tid })
+        },
+        { skipErrorHandler: true },
+      )
       await authApi.updateBackground(url)
       if (userInfo.value) userInfo.value.backgroundUrl = url
       toast.success('背景更换成功', { id: tid })
     } catch {
-      // 由 useRequestManager 处理
+      toast.error('背景更换失败，请重试', { id: tid })
     }
   }
   input.click()

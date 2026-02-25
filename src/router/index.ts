@@ -40,6 +40,16 @@ const router = createRouter({
       component: () => import('@/views/contacts/SearchAddView.vue'),
     },
     {
+      path: '/contacts/apply',
+      name: 'FriendApply',
+      component: () => import('@/views/contacts/FriendApplyView.vue'),
+    },
+    {
+      path: '/contacts/profile-compact/:id',
+      name: 'CompactProfile',
+      component: () => import('@/views/contacts/CompactProfile.vue'),
+    },
+    {
       path: '/auth',
       component: () => import('@/layouts/AuthLayout.vue'),
       children: [

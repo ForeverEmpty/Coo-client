@@ -22,4 +22,7 @@ export const socialApi = {
   getApplyList: () => request.get<Result<FriendApply[]>>('social/friend/apply/list'),
 
   auditApply: (data: AuditParams) => request.post<Result<string>>('social/friend/audit', data),
+
+  unignoreApply: (applyId: string) =>
+    request.post<Result<string>>(`social/friend/unignore/${applyId}`),
 }

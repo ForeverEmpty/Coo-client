@@ -50,9 +50,23 @@ export const WindowPresets: Record<string, IWindowPreset> = {
     minHeight: 480,
     frame: false,
     resizable: true,
-    parent: 'MAIN',
     modal: false,
     title: '添加',
+  },
+  USER_DETAIL: {
+    ...commonOptions,
+    width: 400,
+    height: 600,
+    frame: false,
+    resizable: false,
+  },
+  FRIEND_APPLY: {
+    ...commonOptions,
+    width: 350,
+    height: 450,
+    frame: false,
+    resizable: false,
+    alwaysOnTop: true,
   },
 }
 
@@ -60,4 +74,5 @@ export const WindowUrls: Record<string, string> = {
   LOGIN: '/auth/login',
   MAIN: '/',
   SEARCH_ADD: '/contacts/add',
+  FRIEND_APPLY: '/contacts/apply',
 }

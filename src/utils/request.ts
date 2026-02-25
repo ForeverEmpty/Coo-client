@@ -1,6 +1,13 @@
 import axios from 'axios'
 import { requestObserver } from './requestObserver'
 
+// 扩展 axios 配置类型
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    skipErrorHandler?: boolean
+  }
+}
+
 const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 5000,
@@ -26,6 +33,10 @@ request.interceptors.response.use(
     const res = response.data
     if (res.code === 200) return res
 
+    if (response.config.skipErrorHandler) {
+      return Promise.reject(new Error(res.message))
+    }
+
     if (res.code === 401) {
       requestObserver.emit('UNAUTHORIZED', { message: res.msg, code: res.code })
     } else {
@@ -34,6 +45,10 @@ request.interceptors.response.use(
     return Promise.reject(new Error(res.message))
   },
   (error) => {
+    if (error.config?.skipErrorHandler) {
+      return Promise.reject(error)
+    }
+
     if (error.code === 'ECONNABORTED') {
       requestObserver.emit('TIMEOUT', { message: 'Timeout', config: error.config })
     } else {

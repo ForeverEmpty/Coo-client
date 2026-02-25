@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, ipcMain, app } from 'electron'
 import type { BrowserWindowConstructorOptions, IpcMainEvent } from 'electron'
 import path from 'node:path'
 
@@ -68,6 +68,10 @@ export class WindowService {
       this.createWindow(WindowType.SEARCH_ADD)
     })
 
+    ipcMain.on('open-window', (_, data: { type: WindowType; route?: string }) => {
+      this.createWindow(data.type, data.route)
+    })
+
     logger.info('Window IPC Init.')
   }
 
@@ -123,6 +127,9 @@ export class WindowService {
     win.on('closed', () => {
       this.windowMap.delete(type)
       logger.info(`Window ${type} is closed`)
+      if (type === WindowType.MAIN) {
+        app.quit()
+      }
     })
 
     this.windowMap.set(type, win)

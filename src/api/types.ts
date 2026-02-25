@@ -98,7 +98,7 @@ export interface FriendApply {
   nickname: string
   avatar?: string
   msg: string
-  status: 0 | 1 | 2
+  status: 0 | 1 | 2 | 3
   createTime: string
 }
 
@@ -110,6 +110,6 @@ export interface ApplyParams {
 
 export interface AuditParams {
   applyId: string
-  status: 1 | 2
+  status: 1 | 2 | 3
   remark?: string
 }

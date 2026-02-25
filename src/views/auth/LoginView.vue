@@ -16,6 +16,7 @@ import { ValidatedInput } from '@/components/ui/validated-input'
 import { usePlatform } from '@/composables/usePlatform'
 import { authApi } from '@/api/auth'
 import { logger } from '@/utils/logger'
+import { useUserStore } from '@/stores/userStore'
 
 const { p, isElectron } = usePlatform()
 const router = useRouter()
@@ -44,7 +45,8 @@ const handleLogin = async () => {
   try {
     const res = await authApi.login(loginForm)
     loading.value = false
-    localStorage.setItem('coo_token', res.data)
+    const userStore = useUserStore()
+    await userStore.login(res.data)
     toast.success('登录成功')
 
     if (remember.value) {
@@ -72,6 +74,9 @@ onMounted(async () => {
     loginForm.username = loginCache.username
     loginForm.password = loginCache.password || ''
     remember.value = !!loginCache.password
+
+    userValid.value = userPattern.test(loginForm.username)
+    passValid.value = passPattern.test(loginForm.password)
   }
 })
 </script>

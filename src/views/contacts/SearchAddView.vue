@@ -7,13 +7,19 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { usePlatform } from '@/composables/usePlatform'
 import { socialApi } from '@/api/social' // 确保你之前封装了该 API
 import { cn } from '@/lib/utils'
 import type { UserSimple } from '@/api/types'
+import { useUserStore } from '@/stores/userStore'
+
+import FriendApplyView from './FriendApplyView.vue'
+import CompactProfile from './CompactProfile.vue'
 
 const { p, isElectron } = usePlatform()
 const router = useRouter()
+const userStore = useUserStore()
 
 // --- 搜索状态 ---
 const keyword = ref('')
@@ -28,6 +34,11 @@ const pageSize = ref(15)
 const hasMore = ref(false)
 const loadMoreTrigger = ref<HTMLElement | null>(null)
 let observer: IntersectionObserver | null = null
+
+// --- Web 端专用状态 ---
+const webDetailOpen = ref(false)
+const webApplyOpen = ref(false)
+const selectedUser = ref<UserSimple | null>(null)
 
 const handleClose = () => {
   if (isElectron) p.app.close()
@@ -52,10 +63,12 @@ const doSearch = async (isNewSearch = true) => {
     const res = await socialApi.searchGlobal(keyword.value, pageNum.value, pageSize.value)
     const data = res.data
 
+    const list = data.list.filter((u: UserSimple) => u.id !== userStore.userInfo?.id)
+
     if (isNewSearch) {
-      results.value = data.list
+      results.value = list
     } else {
-      results.value = [...results.value, ...data.list]
+      results.value = [...results.value, ...list]
     }
 
     hasMore.value = data.hasMore
@@ -95,8 +108,34 @@ onUnmounted(() => {
 })
 
 const handleAddFriend = (user: UserSimple) => {
-  // TODO: 实现申请好友弹窗逻辑
-  console.log('申请添加好友:', user.id)
+  if (isElectron) {
+    p.send('open-window', {
+      type: 'FRIEND_APPLY',
+      route: `/contacts/apply?id=${user.id}&nickname=${user.nickname}&avatar=${user.avatar}`,
+    })
+  } else {
+    selectedUser.value = user
+    webApplyOpen.value = true
+  }
+}
+
+const handleCardClick = (user: UserSimple) => {
+  if (isElectron) {
+    p.send('open-window', {
+      type: 'USER_DETAIL',
+      route: `/contacts/profile-compact/${user.id}`,
+    })
+  } else {
+    selectedUser.value = user
+    webDetailOpen.value = true
+  }
+}
+
+const onGoToApply = () => {
+  webDetailOpen.value = false
+  setTimeout(() => {
+    webApplyOpen.value = true
+  }, 200)
 }
 </script>
 
@@ -193,7 +232,7 @@ const handleAddFriend = (user: UserSimple) => {
           <!-- 初始状态 -->
           <div
             v-if="isFirstSearch"
-            class="flex flex-col items-center justify-center h-64 text-muted-foreground text-sm border-2 border-dashed rounded-xl bg-muted/20"
+            class="flex flex-col items-center justify-center h-full text-muted-foreground text-sm border-2 border-dashed rounded-xl bg-muted/20"
           >
             <div class="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
               <UserPlus v-if="activeTab === 'user'" class="h-8 w-8 opacity-50" />
@@ -214,6 +253,7 @@ const handleAddFriend = (user: UserSimple) => {
               v-for="user in results"
               :key="user.id"
               class="flex items-center justify-between p-3 rounded-xl border bg-card hover:border-primary/50 transition-all group"
+              @click="handleCardClick(user)"
             >
               <div class="flex items-center gap-3">
                 <Avatar class="h-11 w-11 border">
@@ -233,7 +273,7 @@ const handleAddFriend = (user: UserSimple) => {
                 size="sm"
                 variant="secondary"
                 class="h-8 rounded-lg transition-all active:scale-95"
-                @click="handleAddFriend(user)"
+                @click.stop="handleAddFriend(user)"
               >
                 <UserPlus class="h-3.5 w-3.5 mr-1.5" /> 加好友
               </Button>
@@ -264,6 +304,22 @@ const handleAddFriend = (user: UserSimple) => {
         </div>
       </div>
     </div>
+
+    <template v-if="!isElectron">
+      <!-- 详情弹窗 -->
+      <Dialog v-model:open="webDetailOpen">
+        <DialogContent class="p-0 overflow-hidden">
+          <CompactProfile :userId="selectedUser?.id" @goToApply="onGoToApply" />
+        </DialogContent>
+      </Dialog>
+
+      <!-- 申请弹窗 -->
+      <Dialog v-model:open="webApplyOpen">
+        <DialogContent class="p-0 overflow-hidden border-none">
+          <FriendApplyView :user="selectedUser" @close="webApplyOpen = false" />
+        </DialogContent>
+      </Dialog>
+    </template>
   </div>
 </template>
 
@@ -279,7 +335,6 @@ const handleAddFriend = (user: UserSimple) => {
   border-radius: 4px;
 }
 
-/* 简单的进入动画 */
 .group {
   animation: slideUp 0.3s ease-out forwards;
 }
