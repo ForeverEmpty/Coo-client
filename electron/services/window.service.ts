@@ -72,6 +72,16 @@ export class WindowService {
       this.createWindow(data.type, data.route)
     })
 
+    ipcMain.on('group-updated', () => {
+      const mainWin = this.windowMap.get(WindowType.MAIN)
+      if (mainWin) mainWin.webContents.send('group-updated')
+    })
+
+    ipcMain.on('accept-apply-result', (_, data) => {
+      const mainWin = this.windowMap.get(WindowType.MAIN)
+      if (mainWin) mainWin.webContents.send('accept-apply-result', data)
+    })
+
     logger.info('Window IPC Init.')
   }
 
@@ -79,11 +89,17 @@ export class WindowService {
     type: WindowType,
     routePath: string = '',
     customOptions?: BrowserWindowConstructorOptions,
+    forceRecreate = false,
   ) {
-    if (this.windowMap.has(type)) {
-      const existingWin = this.windowMap.get(type)
-      existingWin?.focus()
-      return existingWin
+    const existingWin = this.windowMap.get(type)
+    if (existingWin) {
+      if (!forceRecreate) {
+        existingWin.focus()
+        return existingWin
+      }
+
+      this.windowMap.delete(type)
+      existingWin.destroy()
     }
 
     const preset = WindowPresets[type]

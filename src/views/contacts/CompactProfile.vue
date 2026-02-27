@@ -1,23 +1,52 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import type { FunctionalComponent } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { X, MessageSquare, UserPlus, Hash, MapPin, Info, Minus } from 'lucide-vue-next'
+import {
+  X,
+  MessageSquare,
+  UserPlus,
+  Hash,
+  MapPin,
+  Info,
+  Minus,
+  Mars,
+  Venus,
+  VenusAndMars,
+  Cake,
+} from 'lucide-vue-next'
 
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { usePlatform } from '@/composables/usePlatform'
-import { authApi } from '@/api/auth'
-import type { UserInfo } from '@/api/types'
+import { socialApi } from '@/api/social'
+import type { FriendApplySource, UserInfo } from '@/api/types'
 
-const props = defineProps<{ userId: string | undefined }>()
-const emits = defineEmits<{ (e: 'goToApply'): void }>()
+const props = defineProps<{ userId: string | undefined; source?: FriendApplySource }>()
+const emits = defineEmits<{ (e: 'goToApply', source: FriendApplySource): void }>()
 
 const { p, isElectron } = usePlatform()
 const route = useRoute()
 
 const userInfo = ref<UserInfo | null>(null)
 const loading = ref(true)
+
+const resolveSource = (raw?: string | null): FriendApplySource => {
+  const normalized = raw?.trim().toUpperCase()
+  if (normalized === 'QR' || normalized === 'GROUP' || normalized === 'SEARCH') {
+    return normalized
+  }
+  return 'SEARCH'
+}
+
+const genderIconMap: Record<number, FunctionalComponent> = {
+  1: Mars,
+  2: Venus,
+  0: VenusAndMars,
+}
+
+const genderIcon = computed(() => genderIconMap[userInfo.value?.gender || 0])
 
 const handleClose = () => p.app.close()
 const handleMinimize = () => p.app.minimize()
@@ -26,7 +55,7 @@ const loadData = async () => {
   loading.value = true
   const id = props.userId ?? (route.params.id as string)
   try {
-    const res = await authApi.getUserById(id)
+    const res = await socialApi.getFriendInfo(id)
     userInfo.value = res.data
   } finally {
     loading.value = false
@@ -34,13 +63,14 @@ const loadData = async () => {
 }
 
 const goToApply = () => {
+  const source = resolveSource(props.source || (route.query.source as string))
   if (isElectron) {
     p.send('open-window', {
       type: 'FRIEND_APPLY',
-      route: `/contacts/apply?id=${userInfo.value?.id}&nickname=${userInfo.value?.nickname}&avatar=${userInfo.value?.avatar || ''}`,
+      route: `/contacts/apply?id=${userInfo.value?.id}&nickname=${userInfo.value?.nickname}&avatar=${userInfo.value?.avatar || ''}&source=${source}`,
     })
   } else {
-    emits('goToApply')
+    emits('goToApply', source)
   }
 }
 
@@ -99,13 +129,25 @@ onMounted(loadData)
       </div>
 
       <div class="space-y-1">
-        <h2 class="text-2xl font-bold truncate">{{ userInfo?.nickname }}</h2>
+        <div class="flex items-center gap-2">
+          <h2 class="text-2xl font-bold truncate">{{ userInfo?.nickname }}</h2>
+          <span
+            v-if="userInfo?.gender !== undefined"
+            class="px-1.5 py-0.5 rounded-sm text-[10px] font-bold"
+          >
+            <component :is="genderIcon" class="h-5 w-5 text-foreground/50" />
+          </span>
+        </div>
         <p class="text-xs text-muted-foreground flex items-center gap-1">
           <Hash class="h-3 w-3" /> {{ userInfo?.username }}
         </p>
       </div>
 
       <div class="mt-6 space-y-4 flex-1">
+        <div class="flex items-center gap-3 text-sm text-foreground/80">
+          <Cake class="h-4 w-4 text-muted-foreground" />
+          <span>{{ userInfo?.birthday || '未知生日' }}</span>
+        </div>
         <div class="flex items-center gap-3 text-sm text-foreground/80">
           <MapPin class="h-4 w-4 text-muted-foreground" />
           <span>{{ userInfo?.region || '未知地区' }}</span>
@@ -117,11 +159,19 @@ onMounted(loadData)
       </div>
 
       <!-- 4. 底部操作栏 -->
-      <div class="grid grid-cols-2 gap-3 mt-auto pt-4 no-drag" style="-webkit-app-region: no-drag">
+      <div
+        class="grid gap-3 mt-auto pt-4 no-drag"
+        :class="userInfo?.isFriend || userInfo?.isMe ? 'grid-cols-1' : 'grid-cols-2'"
+        style="-webkit-app-region: no-drag"
+      >
         <Button variant="outline" class="rounded-xl h-11 no-drag">
           <MessageSquare class="h-4 w-4 mr-2" /> 发消息
         </Button>
-        <Button class="rounded-xl h-11 no-drag" @click="goToApply">
+        <Button
+          v-if="!userInfo?.isFriend && !userInfo?.isMe"
+          class="rounded-xl h-11 no-drag"
+          @click="goToApply"
+        >
           <UserPlus class="h-4 w-4 mr-2" /> 加好友
         </Button>
       </div>

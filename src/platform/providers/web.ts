@@ -7,6 +7,9 @@ export const WebProvider: PlatformCapabilities = {
   send: (channel, data) => {
     logger.info(`[Web Platform] 拦截到消息发送请求: ${channel}`, data)
   },
+  on: (channel, callback) => {
+    logger.info(`[Web Platform] 拦截到消息接收请求: ${channel}`, callback)
+  },
 
   app: {
     minimize: () => {

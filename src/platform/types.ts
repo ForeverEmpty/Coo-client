@@ -1,8 +1,10 @@
 export interface PlatformCapabilities {
   name: 'web' | 'electron' | 'mobile'
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   send: (channel: string, data?: any) => void
+  on: (channel: string, callback: (event: any, ...args: any[]) => void) => void
+  /* eslint-enable */
 
   app: {
     minimize(): void

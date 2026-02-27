@@ -9,12 +9,12 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { usePlatform } from '@/composables/usePlatform'
-import { socialApi } from '@/api/social' // 确保你之前封装了该 API
+import { socialApi } from '@/api/social'
 import { cn } from '@/lib/utils'
-import type { UserSimple } from '@/api/types'
+import type { FriendApplySource, UserSimple } from '@/api/types'
 import { useUserStore } from '@/stores/userStore'
 
-import FriendApplyView from './FriendApplyView.vue'
+import FriendApplyView from '../components/FriendApplyView.vue'
 import CompactProfile from './CompactProfile.vue'
 
 const { p, isElectron } = usePlatform()
@@ -39,6 +39,7 @@ let observer: IntersectionObserver | null = null
 const webDetailOpen = ref(false)
 const webApplyOpen = ref(false)
 const selectedUser = ref<UserSimple | null>(null)
+const selectedApplySource = ref<FriendApplySource>('SEARCH')
 
 const handleClose = () => {
   if (isElectron) p.app.close()
@@ -108,10 +109,11 @@ onUnmounted(() => {
 })
 
 const handleAddFriend = (user: UserSimple) => {
+  selectedApplySource.value = 'SEARCH'
   if (isElectron) {
     p.send('open-window', {
       type: 'FRIEND_APPLY',
-      route: `/contacts/apply?id=${user.id}&nickname=${user.nickname}&avatar=${user.avatar}`,
+      route: `/contacts/apply?id=${user.id}&nickname=${user.nickname}&avatar=${user.avatar}&source=SEARCH`,
     })
   } else {
     selectedUser.value = user
@@ -120,10 +122,11 @@ const handleAddFriend = (user: UserSimple) => {
 }
 
 const handleCardClick = (user: UserSimple) => {
+  selectedApplySource.value = 'SEARCH'
   if (isElectron) {
     p.send('open-window', {
       type: 'USER_DETAIL',
-      route: `/contacts/profile-compact/${user.id}`,
+      route: `/contacts/profile-compact/${user.id}?source=SEARCH`,
     })
   } else {
     selectedUser.value = user
@@ -131,7 +134,8 @@ const handleCardClick = (user: UserSimple) => {
   }
 }
 
-const onGoToApply = () => {
+const onGoToApply = (source: FriendApplySource) => {
+  selectedApplySource.value = source
   webDetailOpen.value = false
   setTimeout(() => {
     webApplyOpen.value = true
@@ -309,14 +313,22 @@ const onGoToApply = () => {
       <!-- 详情弹窗 -->
       <Dialog v-model:open="webDetailOpen">
         <DialogContent class="p-0 overflow-hidden">
-          <CompactProfile :userId="selectedUser?.id" @goToApply="onGoToApply" />
+          <CompactProfile
+            :userId="selectedUser?.id"
+            :source="selectedApplySource"
+            @goToApply="onGoToApply"
+          />
         </DialogContent>
       </Dialog>
 
       <!-- 申请弹窗 -->
       <Dialog v-model:open="webApplyOpen">
         <DialogContent class="p-0 overflow-hidden border-none">
-          <FriendApplyView :user="selectedUser" @close="webApplyOpen = false" />
+          <FriendApplyView
+            :user="selectedUser"
+            :source="selectedApplySource"
+            @close="webApplyOpen = false"
+          />
         </DialogContent>
       </Dialog>
     </template>

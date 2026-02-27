@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref } from 'vue'
 import { Plus, Search } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
@@ -67,7 +67,7 @@ const handleAddClick = () => {
     </div>
 
     <!-- 2. 列表内容区 -->
-    <ScrollArea class="flex-1 px-1">
+    <ScrollArea class="flex-1 px-1 min-h-0">
       <Transition name="fade" mode="out-in">
         <!-- 核心：根据映射动态渲染组件 -->
         <component :is="contactTab.find((tab) => tab.id === currentTab)?.component" />

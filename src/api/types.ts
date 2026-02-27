@@ -35,6 +35,7 @@ export interface UserInfo {
   publicJob: boolean
   backgroundUrl?: string
   publicMutualFriend: boolean
+  isFriend?: boolean
 }
 
 export interface UserSimple {
@@ -84,6 +85,7 @@ export interface Friend extends UserSimple {
   remark?: string
   showName: string
   groupId: string
+  status?: 1 | 2 | 3
 }
 
 export interface FriendGroup {
@@ -95,6 +97,8 @@ export interface FriendGroup {
 export interface FriendApply {
   id: string
   fromId: string
+  toId?: string
+  source?: FriendApplySource
   nickname: string
   avatar?: string
   msg: string
@@ -102,14 +106,19 @@ export interface FriendApply {
   createTime: string
 }
 
+export type FriendApplySource = 'SEARCH' | 'QR' | 'GROUP'
+
 export interface ApplyParams {
   targetId: string
   msg: string
+  source: FriendApplySource
   remark?: string
+  groupId?: string
 }
 
 export interface AuditParams {
   applyId: string
   status: 1 | 2 | 3
   remark?: string
+  groupId?: string
 }

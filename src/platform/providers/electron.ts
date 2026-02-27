@@ -4,6 +4,7 @@ export const ElectronProvider: PlatformCapabilities = {
   name: 'electron',
 
   send: (channel, data) => window.electronAPI?.send(channel, data),
+  on: (channel, callback) => window.electronAPI?.on(channel, callback),
 
   app: {
     minimize: () => window.electronAPI?.send('window-minimize'),

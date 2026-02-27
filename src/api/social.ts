@@ -7,6 +7,7 @@ import type {
   PageResult,
   Result,
   UserSimple,
+  UserInfo,
 } from './types'
 
 export const socialApi = {
@@ -21,8 +22,25 @@ export const socialApi = {
 
   getApplyList: () => request.get<Result<FriendApply[]>>('social/friend/apply/list'),
 
+  getSentApplyList: () => request.get<Result<FriendApply[]>>('social/friend/apply/list/sent'),
+
   auditApply: (data: AuditParams) => request.post<Result<string>>('social/friend/audit', data),
 
   unignoreApply: (applyId: string) =>
     request.post<Result<string>>(`social/friend/unignore/${applyId}`),
+
+  getFriendInfo: (id: string) => request.get<Result<UserInfo>>(`social/friend/info/${id}`),
+
+  deleteFriend: (friendId: string) => request.delete<Result<string>>(`social/friend/${friendId}`),
+
+  addFriendGroup: (name: string) => request.post<Result<string>>('social/friend/group', { name }),
+
+  updateFriendGroup: (groupId: string | number, name: string) =>
+    request.put<Result<string>>('social/friend/group', { groupId, name }),
+
+  deleteFriendGroup: (groupId: string | number) =>
+    request.delete<Result<string>>(`social/friend/group/${groupId}`),
+
+  sortFriendGroups: (groupIds: (string | number)[]) =>
+    request.put<Result<string>>('social/friend/group/sort', { groupIds }),
 }

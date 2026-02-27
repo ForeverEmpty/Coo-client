@@ -4,6 +4,7 @@ import path from 'node:path'
 export interface IWindowPreset extends Omit<BrowserWindowConstructorOptions, 'parent'> {
   parent?: string
 }
+
 const commonOptions: IWindowPreset = {
   show: false,
   webPreferences: {
@@ -18,11 +19,11 @@ export const WindowPresets: Record<string, IWindowPreset> = {
     ...commonOptions,
     width: 380,
     height: 580,
-    frame: false, // 无边框
-    resizable: false, // 不可缩放
+    frame: false,
+    resizable: false,
     transparent: true,
     hasShadow: true,
-    alwaysOnTop: true, // 登录窗置顶
+    alwaysOnTop: true,
   },
   MAIN: {
     ...commonOptions,
@@ -30,17 +31,21 @@ export const WindowPresets: Record<string, IWindowPreset> = {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    frame: false, // 无边框
+    frame: false,
     resizable: true,
     hasShadow: true,
   },
   DIALOG: {
     ...commonOptions,
-    width: 600,
-    height: 450,
-    parent: 'MAIN', // 稍后在 Service 里处理父子关系
-    modal: true, // 模态窗口
+    width: 520,
+    height: 320,
+    minWidth: 480,
+    minHeight: 300,
+    frame: false,
+    parent: 'MAIN',
+    modal: true,
     resizable: false,
+    hasShadow: true,
   },
   SEARCH_ADD: {
     ...commonOptions,
@@ -68,11 +73,30 @@ export const WindowPresets: Record<string, IWindowPreset> = {
     resizable: false,
     alwaysOnTop: true,
   },
+  GROUP_MANAGE: {
+    ...commonOptions,
+    width: 400,
+    height: 500,
+    frame: false,
+    resizable: false,
+    modal: true,
+  },
+  ACCEPT_APPLY: {
+    ...commonOptions,
+    width: 400,
+    height: 420,
+    frame: false,
+    resizable: false,
+    modal: true,
+  },
 }
 
 export const WindowUrls: Record<string, string> = {
   LOGIN: '/auth/login',
   MAIN: '/',
+  DIALOG: '/dialog',
   SEARCH_ADD: '/contacts/add',
   FRIEND_APPLY: '/contacts/apply',
+  GROUP_MANAGE: '/contacts/group-manage',
+  ACCEPT_APPLY: '/contacts/accept-apply',
 }

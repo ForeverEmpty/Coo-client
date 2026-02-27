@@ -42,12 +42,27 @@ const router = createRouter({
     {
       path: '/contacts/apply',
       name: 'FriendApply',
-      component: () => import('@/views/contacts/FriendApplyView.vue'),
+      component: () => import('@/views/components/FriendApplyView.vue'),
+    },
+    {
+      path: '/contacts/group-manage',
+      name: 'GroupManage',
+      component: () => import('@/views/contacts/components/GroupManager.vue'),
+    },
+    {
+      path: '/contacts/accept-apply',
+      name: 'AcceptApply',
+      component: () => import('@/views/contacts/components/AcceptApplyDialog.vue'),
     },
     {
       path: '/contacts/profile-compact/:id',
       name: 'CompactProfile',
       component: () => import('@/views/contacts/CompactProfile.vue'),
+    },
+    {
+      path: '/dialog',
+      name: 'DialogHost',
+      component: () => import('@/views/dialog/DialogHostView.vue'),
     },
     {
       path: '/auth',

@@ -21,9 +21,11 @@ import {
   ShieldCheck,
   Image as ImageIcon,
   Users,
+  Trash2,
 } from 'lucide-vue-next'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
@@ -33,18 +35,37 @@ import ProfileSection from '@/views/profile/components/ProfileSection.vue'
 import EditProfileDialog from '@/views/profile/components/EditProfileDialog.vue'
 import PrivacyDialog from '@/views/profile/components/PrivacyDialog.vue'
 
+import type { Friend, FriendApplySource, UserInfo, UserSimple } from '@/api/types'
 import { authApi } from '@/api/auth'
+import { socialApi } from '@/api/social'
 import { fileApi } from '@/api/file'
-import type { UserInfo } from '@/api/types'
 import { calculateAge } from '@/utils/calculateAge'
+import { formatLocalDateTime } from '@/utils/dateTime'
+import { usePlatform } from '@/composables/usePlatform'
+import FriendApplyView from '../components/FriendApplyView.vue'
+import { useChatStore } from '@/stores/chatStore'
+import { useDialog } from '@/composables/useDialog'
 
 const route = useRoute()
 const router = useRouter()
+const chatStore = useChatStore()
+const { p, isElectron } = usePlatform()
+const { confirm } = useDialog()
 
 const loading = ref(true)
 const userInfo = ref<UserInfo | null>(null)
 const showEditProfileDialog = ref(false)
 const showPrivacyDialog = ref(false)
+const webApplyOpen = ref(false)
+const confirmDialogOpen = ref(false)
+const selectedUser = ref<UserSimple | null>(null)
+const deletingFriendId = ref<string | null>(null)
+const pendingDeleteFriend = ref<Friend | null>(null)
+const applySource = ref<FriendApplySource>(
+  (['SEARCH', 'QR', 'GROUP'].includes(route.query.source as string)
+    ? route.query.source
+    : 'SEARCH') as FriendApplySource,
+)
 
 const genderIconMap: Record<number, FunctionalComponent> = {
   1: Mars,
@@ -56,17 +77,74 @@ const isSelf = computed(() => route.params.id === 'me' || userInfo.value?.isMe)
 const showMutualFriends = computed(() => !isSelf.value && userInfo.value?.publicMutualFriend)
 const age = computed(() => calculateAge(userInfo.value?.birthday))
 const genderIcon = computed(() => genderIconMap[userInfo.value?.gender || 0])
+const createTimeText = computed(() =>
+  userInfo.value?.createTime ? formatLocalDateTime(userInfo.value.createTime, 'zh-CN') : '',
+)
 
 const handleBack = () => {
   if (window.history.length > 1) router.back()
   else router.push('/chat')
 }
 
+const closeDeleteDialog = () => {
+  confirmDialogOpen.value = false
+  pendingDeleteFriend.value = null
+}
+
+const deleteFriend = async (friend: Friend) => {
+  if (deletingFriendId.value) return
+
+  deletingFriendId.value = friend.id
+  try {
+    await socialApi.deleteFriend(friend.id)
+
+    if (chatStore.activeChatId === friend.id) {
+      chatStore.activeChatId = null
+    }
+
+    toast.success('已删除好友（单向删除）')
+    closeDeleteDialog()
+  } catch {
+    toast.error('删除失败，请稍后重试。')
+  } finally {
+    deletingFriendId.value = null
+  }
+}
+
+const requestDeleteFriend = async (friend: Friend) => {
+  if (deletingFriendId.value) return
+
+  if (isElectron) {
+    const confirmed = await confirm({
+      title: '删除好友',
+      description: `确认删除“${friend.showName || friend.nickname}”吗？这是单向删除。`,
+      confirmText: '确认删除',
+      cancelText: '取消',
+      variant: 'destructive',
+    })
+
+    if (!confirmed) return
+    await deleteFriend(friend)
+    return
+  }
+
+  pendingDeleteFriend.value = friend
+  confirmDialogOpen.value = true
+}
+
+const confirmDeleteFriend = async () => {
+  const friend = pendingDeleteFriend.value
+  if (!friend) return
+  await deleteFriend(friend)
+}
+
 const loadData = async () => {
   loading.value = true
   try {
     const id = route.params.id
-    const result = id === 'me' ? await authApi.getMe() : await authApi.getUserById(id as string)
+    const result = isSelf.value
+      ? await authApi.getMe()
+      : await socialApi.getFriendInfo(id as string)
     userInfo.value = result.data
   } finally {
     loading.value = false
@@ -128,6 +206,30 @@ const onBackgroundClick = () => {
     }
   }
   input.click()
+}
+
+const handleFriendActionClick = () => {
+  if (userInfo.value?.isFriend) {
+    void requestDeleteFriend(
+      pendingDeleteFriend.value ||
+        ({
+          id: userInfo.value.id,
+          nickname: userInfo.value.nickname,
+          showName: userInfo.value.nickname,
+        } as Friend),
+    )
+    return
+  }
+
+  if (isElectron) {
+    p.send('open-window', {
+      type: 'FRIEND_APPLY',
+      route: `/contacts/apply?id=${userInfo.value?.id}&nickname=${userInfo.value?.nickname}&avatar=${userInfo.value?.avatar}&source=${applySource.value}`,
+    })
+  } else {
+    selectedUser.value = { ...userInfo.value } as UserSimple
+    webApplyOpen.value = true
+  }
 }
 
 const copyText = (text: string) => {
@@ -245,9 +347,14 @@ onMounted(loadData)
                     <Button class="rounded-xl gap-2 h-10 px-8"
                       ><MessageSquare class="h-4 w-4" /> 发消息</Button
                     >
-                    <Button variant="secondary" class="rounded-xl h-10 px-4"
-                      ><UserPlus class="h-4 w-4"
-                    /></Button>
+                    <Button
+                      variant="secondary"
+                      class="rounded-xl h-10 px-4"
+                      @click="handleFriendActionClick()"
+                    >
+                      <Trash2 v-if="userInfo?.isFriend" class="h-4 w-4" />
+                      <UserPlus v-else class="h-4 w-4" />
+                    </Button>
                   </template>
                 </div>
               </div>
@@ -280,7 +387,7 @@ onMounted(loadData)
                 <InfoItem
                   :icon="Calendar"
                   label="加入时间"
-                  :value="userInfo?.createTime"
+                  :value="createTimeText"
                   :is-self="isSelf"
                 />
               </div>
@@ -346,5 +453,44 @@ onMounted(loadData)
     />
 
     <PrivacyDialog v-model:open="showPrivacyDialog" :initial-data="userInfo" @changed="loadData" />
+
+    <template v-if="!isElectron">
+      <!-- 申请弹窗 -->
+      <Dialog v-model:open="webApplyOpen">
+        <DialogContent class="p-0 overflow-hidden border-none">
+          <FriendApplyView
+            :user="selectedUser"
+            :source="applySource"
+            @close="webApplyOpen = false"
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog v-model:open="confirmDialogOpen">
+        <DialogContent class="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>删除好友</DialogTitle>
+            <DialogDescription>
+              确认删除“{{
+                pendingDeleteFriend?.showName || pendingDeleteFriend?.nickname
+              }}”吗？这是单向删除。
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter class="gap-2">
+            <Button variant="outline" :disabled="!!deletingFriendId" @click="closeDeleteDialog">
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              :disabled="!!deletingFriendId"
+              @click="confirmDeleteFriend"
+            >
+              确认删除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </template>
   </div>
 </template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { MoreHorizontal, Smile, Image, Paperclip, Send } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -15,8 +16,14 @@ defineProps<{
   isGroup?: boolean // 用于判断是否显示发送者昵称
 }>()
 
+const router = useRouter()
+
 const footerHeight = ref(200)
 const myAvatar = 'https://github.com/shadcn.png' // 实际应从 Store 获取
+
+const handleAvatarClick = (userId: string) => {
+  router.push(`/profile/${userId}/source=GROUP`)
+}
 </script>
 
 <template>
@@ -52,7 +59,10 @@ const myAvatar = 'https://github.com/shadcn.png' // 实际应从 Store 获取
           :class="msg.fromId === 'me' ? 'ml-auto flex-row-reverse' : ''"
         >
           <!-- 头像 -->
-          <Avatar class="h-9 w-9 mt-1 shrink-0 cursor-pointer hover:opacity-80 transition-opacity">
+          <Avatar
+            class="h-9 w-9 mt-1 shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+            @click="handleAvatarClick(msg.fromId)"
+          >
             <AvatarImage
               :src="
                 msg.fromId === 'me'
