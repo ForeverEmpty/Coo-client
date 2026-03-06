@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Friend, FriendGroup } from '@/api/types'
 
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { toast } from 'vue-sonner'
 import { Settings } from 'lucide-vue-next'
 
@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { useDialog } from '@/composables/useDialog'
 import { usePlatform } from '@/composables/usePlatform'
 import { createFriendContextMenu } from '@/config/menu'
@@ -41,6 +42,13 @@ const confirmDialogOpen = ref(false)
 const pendingDeleteFriend = ref<Friend | null>(null)
 
 const manageGroupOpen = ref(false)
+const remarkDialogOpen = ref(false)
+const pendingRemarkFriend = ref<Friend | null>(null)
+const remarkValue = ref('')
+const savingRemark = ref(false)
+const movingGroupFriendId = ref<string | null>(null)
+
+const expandedGroupIds = computed(() => friendGroups.value.map((item) => String(item.groupId)))
 
 const handleManageGroups = () => {
   if (isElectron) {
@@ -48,9 +56,9 @@ const handleManageGroups = () => {
       type: 'GROUP_MANAGE',
       route: '/contacts/group-manage',
     })
-  } else {
-    manageGroupOpen.value = true
+    return
   }
+  manageGroupOpen.value = true
 }
 
 const fetchFriendGroups = async () => {
@@ -65,6 +73,41 @@ const closeDeleteDialog = () => {
   pendingDeleteFriend.value = null
 }
 
+const closeRemarkDialog = () => {
+  remarkDialogOpen.value = false
+  pendingRemarkFriend.value = null
+  remarkValue.value = ''
+}
+
+const findFriendById = (friendId: string) => {
+  for (const group of friendGroups.value) {
+    const matched = group.children.find((friend) => friend.id === friendId)
+    if (matched) {
+      return matched
+    }
+  }
+  return null
+}
+
+const syncActiveChatMeta = (friendId: string) => {
+  if (chatStore.activeChatId !== friendId) {
+    return
+  }
+
+  const friend = findFriendById(friendId)
+  if (!friend) {
+    return
+  }
+
+  chatStore.ensureSession({
+    id: friend.id,
+    title: friend.showName || friend.nickname || friend.id,
+    avatar: friend.avatar || '',
+    type: 1,
+    subTitle: '在线',
+  })
+}
+
 const deleteFriend = async (friend: Friend) => {
   if (deletingFriendId.value) return
 
@@ -73,7 +116,7 @@ const deleteFriend = async (friend: Friend) => {
     await socialApi.deleteFriend(friend.id)
 
     if (chatStore.activeChatId === friend.id) {
-      chatStore.activeChatId = null
+      chatStore.setActiveChat(null)
     }
 
     toast.success('已删除好友（单向删除）')
@@ -111,12 +154,71 @@ const confirmDeleteFriend = async () => {
   await deleteFriend(friend)
 }
 
+const requestSetRemark = (friend: Friend) => {
+  if (savingRemark.value || movingGroupFriendId.value) {
+    return
+  }
+  pendingRemarkFriend.value = friend
+  remarkValue.value = friend.remark || ''
+  remarkDialogOpen.value = true
+}
+
+const submitRemark = async () => {
+  const friend = pendingRemarkFriend.value
+  if (!friend || savingRemark.value) {
+    return
+  }
+
+  savingRemark.value = true
+  try {
+    await socialApi.updateFriendRelation({
+      friendId: friend.id,
+      remark: remarkValue.value.trim(),
+    })
+    toast.success('备注已更新')
+    closeRemarkDialog()
+    await fetchFriendGroups()
+    syncActiveChatMeta(friend.id)
+  } finally {
+    savingRemark.value = false
+  }
+}
+
+const moveFriendGroup = async (friend: Friend, targetGroupId: string) => {
+  if (movingGroupFriendId.value || String(friend.groupId ?? '0') === String(targetGroupId)) {
+    return
+  }
+
+  movingGroupFriendId.value = friend.id
+  try {
+    await socialApi.updateFriendRelation({
+      friendId: friend.id,
+      groupId: targetGroupId,
+    })
+    toast.success('已更换分组')
+    await fetchFriendGroups()
+    syncActiveChatMeta(friend.id)
+  } finally {
+    movingGroupFriendId.value = null
+  }
+}
+
 const getFriendMenu = (friend: Friend) =>
   createFriendContextMenu({
     friend,
     deletingFriendId: deletingFriendId.value,
+    groups: friendGroups.value.map((group) => ({
+      groupId: String(group.groupId),
+      groupName: group.groupName,
+    })),
     onDeleteFriend: (currentFriend) => {
       void requestDeleteFriend(currentFriend)
+    },
+    onSetRemark: (currentFriend) => {
+      requestSetRemark(currentFriend)
+    },
+    onMoveGroup: (currentFriend, targetGroupId) => {
+      void moveFriendGroup(currentFriend, targetGroupId)
     },
   })
 
@@ -132,7 +234,7 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="px-3 py-2 flex items-center justify-between border-b border-border/40">
+    <div class="flex items-center justify-between border-b border-border/40 px-3 py-2">
       <span class="text-xs font-semibold text-muted-foreground">我的好友</span>
       <Button
         variant="ghost"
@@ -140,32 +242,32 @@ onMounted(() => {
         class="h-6 w-6 text-muted-foreground"
         @click="handleManageGroups"
       >
-        <Settings class="w-3.5 h-3.5" />
+        <Settings class="h-3.5 w-3.5" />
       </Button>
     </div>
-    <Accordion type="multiple" class="w-full" :default-value="['g1', 'g2']">
+
+    <Accordion type="multiple" class="w-full" :default-value="expandedGroupIds">
       <AccordionItem
-        v-for="g in friendGroups"
-        :key="g.groupId"
-        :value="g.groupId"
+        v-for="group in friendGroups"
+        :key="group.groupId"
+        :value="String(group.groupId)"
         class="border-none"
       >
         <AccordionTrigger
           class="px-3 py-2 text-xs font-bold text-muted-foreground hover:bg-muted/30 hover:no-underline"
         >
-          {{ g.groupName }}
-          <span class="ml-auto text-[10px] opacity-70">{{ g.children.length }}</span>
+          {{ group.groupName }}
+          <span class="ml-auto text-[10px] opacity-70">{{ group.children.length }}</span>
         </AccordionTrigger>
         <AccordionContent class="pb-0">
           <QuickContextMenu
-            v-for="friend in g.children"
+            v-for="friend in group.children"
             :key="friend.id"
             :menu="getFriendMenu(friend)"
             trigger="contextmenu"
             trigger-class="w-full"
           >
             <div
-              @click="chatStore.setActiveChat(friend.id)"
               :class="
                 cn(
                   'ml-1 flex items-center gap-3 rounded-lg px-3 py-2 transition-colors',
@@ -174,12 +276,23 @@ onMounted(() => {
                     : 'cursor-pointer hover:bg-muted/50',
                 )
               "
+              @click="
+                chatStore.setActiveChat({
+                  id: friend.id,
+                  title: friend.showName || friend.nickname || friend.id,
+                  avatar: friend.avatar || '',
+                  type: 1,
+                  subTitle: '在线',
+                })
+              "
             >
               <Avatar class="h-9 w-9">
                 <AvatarImage :src="friend.avatar || ''" />
-                <AvatarFallback>{{ friend.showName[0] }}</AvatarFallback>
+                <AvatarFallback>{{
+                  (friend.showName || friend.nickname || '?')[0]
+                }}</AvatarFallback>
               </Avatar>
-              <span class="text-sm font-medium">{{ friend.showName || '' }}</span>
+              <span class="text-sm font-medium">{{ friend.showName || friend.nickname }}</span>
             </div>
           </QuickContextMenu>
         </AccordionContent>
@@ -208,9 +321,37 @@ onMounted(() => {
       </DialogContent>
     </Dialog>
 
+    <Dialog v-model:open="remarkDialogOpen">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>设置备注</DialogTitle>
+          <DialogDescription>
+            为“{{ pendingRemarkFriend?.showName || pendingRemarkFriend?.nickname }}”设置备注名。
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="space-y-2">
+          <Input
+            v-model="remarkValue"
+            placeholder="输入备注（留空则清空备注）"
+            maxlength="24"
+            @keyup.enter="submitRemark"
+          />
+          <p class="text-xs text-muted-foreground">优先显示备注，未设置时显示昵称。</p>
+        </div>
+
+        <DialogFooter class="gap-2">
+          <Button variant="outline" :disabled="savingRemark" @click="closeRemarkDialog"
+            >取消</Button
+          >
+          <Button :disabled="savingRemark" @click="submitRemark">保存</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     <Dialog v-if="!isElectron" v-model:open="manageGroupOpen">
       <DialogContent
-        class="sm:max-w-md p-0 overflow-hidden border-none bg-background"
+        class="overflow-hidden border-none bg-background p-0 sm:max-w-md"
         :show-close-button="false"
       >
         <GroupManager @close="manageGroupOpen = false" @update="fetchFriendGroups" />

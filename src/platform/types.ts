@@ -25,7 +25,7 @@ export interface PlatformCapabilities {
   }
 
   device: {
-    vibrate(): void // 移动端震动，Web/桌面忽略
+    vibrate(): void // 移动端震动，Web/桌面端可忽略
     getBattery(): Promise<number>
   }
 }

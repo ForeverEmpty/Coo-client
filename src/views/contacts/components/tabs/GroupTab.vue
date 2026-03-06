@@ -16,7 +16,15 @@ const groups = [
     <div
       v-for="group in groups"
       :key="group.id"
-      @click="chatStore.setActiveChat(group.id)"
+      @click="
+        chatStore.setActiveChat({
+          id: group.id,
+          title: group.name,
+          avatar: group.avatar,
+          type: 2,
+          subTitle: '群聊',
+        })
+      "
       :class="
         cn(
           'flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors',

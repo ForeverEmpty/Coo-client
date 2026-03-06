@@ -79,10 +79,7 @@ watch(
 )
 
 const submitApply = async () => {
-  const parsedGroupId =
-    selectedGroupId.value !== '0' && !Number.isNaN(Number(selectedGroupId.value))
-      ? Number(selectedGroupId.value)
-      : undefined
+  const parsedGroupId = selectedGroupId.value !== '0' ? selectedGroupId.value : undefined
 
   loading.value = true
   try {

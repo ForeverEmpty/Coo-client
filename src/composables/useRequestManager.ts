@@ -3,14 +3,16 @@ import { toast } from 'vue-sonner'
 import { useRouter } from 'vue-router'
 
 import { requestObserver } from '@/utils/requestObserver'
+import { useUserStore } from '@/stores/userStore'
 import { usePlatform } from './usePlatform'
 
 export function useRequestManager() {
   const router = useRouter()
+  const userStore = useUserStore()
   const { p, isElectron } = usePlatform()
 
   const unSubError = requestObserver.onError((payload) => {
-    toast.error(payload.message || '请求错误')
+    toast.error(payload.message || 'Request failed')
 
     if (isElectron) {
       window.electronAPI.log.error(`API Error: ${payload.message}`, payload.config?.url)
@@ -18,7 +20,7 @@ export function useRequestManager() {
   })
 
   const unSubAuth = requestObserver.onUnauthorized(() => {
-    localStorage.removeItem('coo_token')
+    userStore.logout()
 
     if (isElectron) {
       window.electronAPI.log.warn('User unauthorized, token removed')
@@ -33,7 +35,7 @@ export function useRequestManager() {
     toast.warning('Timeout, please check server status')
 
     if (isElectron) {
-      window.electronAPI.log.error('Network Timeout on desktop')
+      window.electronAPI.log.error('Network timeout on desktop')
     }
   })
 

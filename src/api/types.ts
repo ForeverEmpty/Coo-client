@@ -71,7 +71,7 @@ export interface ChatMessage {
   url?: string
   fileSize?: number
   fileName?: string
-  timestamp: number
+  timestamp: number | string
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -121,4 +121,40 @@ export interface AuditParams {
   status: 1 | 2 | 3
   remark?: string
   groupId?: string
+}
+
+export interface FriendRelationUpdateParams {
+  friendId: string
+  remark?: string
+  groupId?: string
+}
+
+export interface ChatHistoryMessage {
+  id: string
+  fromId: string
+  toId: string
+  chatType: 1 | 2
+  contentType: ContentType
+  content?: string
+  url?: string
+  fileName?: string
+  fileSize?: number
+  timestamp: number | string
+  status: number
+  replyTo?: {
+    messageId?: string
+    senderName?: string
+    content?: string
+  }
+}
+
+export interface ChatHistoryCursor {
+  list: ChatHistoryMessage[]
+  hasMore: boolean
+  nextCursor?: string | null
+}
+
+export interface ChatSessionConfig {
+  pinnedChatIds: string[]
+  hiddenRecentChatIds: string[]
 }

@@ -2,8 +2,10 @@ import request from '@/utils/request'
 import type {
   ApplyParams,
   AuditParams,
+  FriendRelationUpdateParams,
   FriendApply,
   FriendGroup,
+  ChatSessionConfig,
   PageResult,
   Result,
   UserSimple,
@@ -33,14 +35,23 @@ export const socialApi = {
 
   deleteFriend: (friendId: string) => request.delete<Result<string>>(`social/friend/${friendId}`),
 
+  updateFriendRelation: (params: FriendRelationUpdateParams) =>
+    request.put<Result<string>>('social/friend/relation', params),
+
   addFriendGroup: (name: string) => request.post<Result<string>>('social/friend/group', { name }),
 
-  updateFriendGroup: (groupId: string | number, name: string) =>
+  updateFriendGroup: (groupId: string, name: string) =>
     request.put<Result<string>>('social/friend/group', { groupId, name }),
 
-  deleteFriendGroup: (groupId: string | number) =>
+  deleteFriendGroup: (groupId: string) =>
     request.delete<Result<string>>(`social/friend/group/${groupId}`),
 
-  sortFriendGroups: (groupIds: (string | number)[]) =>
+  sortFriendGroups: (groupIds: string[]) =>
     request.put<Result<string>>('social/friend/group/sort', { groupIds }),
+
+  getChatSessionConfig: () =>
+    request.get<Result<ChatSessionConfig>>('social/friend/chat/session-config'),
+
+  saveChatSessionConfig: (data: ChatSessionConfig) =>
+    request.put<Result<string>>('social/friend/chat/session-config', data),
 }

@@ -5,29 +5,29 @@ export const WebProvider: PlatformCapabilities = {
   name: 'web',
 
   send: (channel, data) => {
-    logger.info(`[Web Platform] 拦截到消息发送请求: ${channel}`, data)
+    logger.info(`[Web Platform] send event: ${channel}`, data)
   },
   on: (channel, callback) => {
-    logger.info(`[Web Platform] 拦截到消息接收请求: ${channel}`, callback)
+    logger.info(`[Web Platform] subscribe event: ${channel}`, callback)
   },
 
   app: {
     minimize: () => {
-      logger.warn('Web端不支持最小化操作')
+      logger.warn('Web platform does not support minimize')
     },
     maximize: () => {
-      logger.warn('Web端不支持最大化操作')
+      logger.warn('Web platform does not support maximize')
     },
     close: () => {
       if (window.history.length > 1) {
         window.history.back()
       } else {
         window.close()
-        alert('请手动关闭浏览器标签页')
+        alert('Please close this browser tab manually')
       }
     },
     exit: () => {
-      logger.warn('Web端不支持直接退出应用')
+      logger.warn('Web platform does not support direct app exit')
     },
     setLoginCache: (data) => {
       localStorage.setItem('loginCache', JSON.stringify(data))
@@ -41,7 +41,7 @@ export const WebProvider: PlatformCapabilities = {
   notification: {
     send: (title, body) => {
       if (!('Notification' in window)) {
-        logger.warn('当前浏览器不支持桌面通知')
+        logger.warn('Desktop notification is not supported in current browser')
         return
       }
 

@@ -28,7 +28,7 @@ const notifyUpdate = () => {
 const groups = ref<FriendGroup[]>([])
 const loading = ref(false)
 
-const isDefaultGroup = (groupId: string | number) => String(groupId) === '0'
+const isDefaultGroup = (groupId: string) => groupId === '0'
 
 const defaultGroup = computed(() => groups.value.find((g) => isDefaultGroup(g.groupId)))
 const draggableGroups = computed({
@@ -83,7 +83,7 @@ const cancelEdit = () => {
   editName.value = ''
 }
 
-const saveEdit = async (groupId: string | number) => {
+const saveEdit = async (groupId: string) => {
   if (isDefaultGroup(groupId)) return
   if (!editName.value.trim()) {
     toast.error('分组名称不能为空')
@@ -99,7 +99,7 @@ const saveEdit = async (groupId: string | number) => {
   } catch {}
 }
 
-const handleDelete = async (groupId: string | number) => {
+const handleDelete = async (groupId: string) => {
   if (isDefaultGroup(groupId)) return
 
   try {
