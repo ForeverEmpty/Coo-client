@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { AlertCircle, Image, Loader2, MoreHorizontal, Paperclip, Send, Smile } from 'lucide-vue-next'
+import {
+  AlertCircle,
+  Image,
+  Loader2,
+  MoreHorizontal,
+  Paperclip,
+  Send,
+  Smile,
+} from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
@@ -203,7 +211,9 @@ const handleJumpFirstUnread = async () => {
 }
 
 const badgeText = () =>
-  visibleUnreadCount.value > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : String(visibleUnreadCount.value)
+  visibleUnreadCount.value > MAX_BADGE_COUNT
+    ? `${MAX_BADGE_COUNT}+`
+    : String(visibleUnreadCount.value)
 
 watch(
   () => props.chatId,
@@ -325,11 +335,16 @@ onBeforeUnmount(() => {
     <div ref="scrollAreaHostRef" class="relative flex-1 min-h-0">
       <ScrollArea class="h-full px-6 pt-6 min-h-0">
         <div class="space-y-6">
-        <div v-if="historyHasMore || historyLoading" class="flex justify-center">
-          <Button variant="ghost" size="sm" :disabled="historyLoading" @click="emit('loadMoreHistory')">
-            {{ historyLoading ? 'Loading...' : 'Load more messages' }}
-          </Button>
-        </div>
+          <div v-if="historyHasMore || historyLoading" class="flex justify-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              :disabled="historyLoading"
+              @click="emit('loadMoreHistory')"
+            >
+              {{ historyLoading ? 'Loading...' : 'Load more messages' }}
+            </Button>
+          </div>
 
           <div
             v-for="msg in messages"
@@ -348,7 +363,10 @@ onBeforeUnmount(() => {
               </AvatarFallback>
             </Avatar>
 
-            <div :class="msg.direction === 'out' ? 'items-end' : 'items-start'" class="flex flex-col min-w-0">
+            <div
+              :class="msg.direction === 'out' ? 'items-end' : 'items-start'"
+              class="flex flex-col min-w-0"
+            >
               <span
                 v-if="isGroup && msg.direction !== 'out'"
                 class="text-[10px] text-muted-foreground mb-1 ml-1"
@@ -357,7 +375,7 @@ onBeforeUnmount(() => {
               </span>
 
               <div
-                class="px-4 py-2.5 text-sm shadow-sm leading-relaxed whitespace-pre-wrap break-words"
+                class="px-4 py-2.5 text-sm shadow-sm leading-relaxed whitespace-pre-wrap warp-break-words"
                 :class="
                   msg.direction === 'out'
                     ? 'bg-primary text-primary-foreground rounded-2xl rounded-tr-none'
@@ -377,7 +395,9 @@ onBeforeUnmount(() => {
                 <button
                   v-if="msg.direction === 'out' && msg.status === 'failed'"
                   class="relative text-red-500 hover:text-red-600 transition-colors"
-                  :title="isRetryAnimating(msg.localId) ? 'Retrying...' : 'Send failed, click to retry'"
+                  :title="
+                    isRetryAnimating(msg.localId) ? 'Retrying...' : 'Send failed, click to retry'
+                  "
                   @click="handleRetryClick(msg.localId)"
                 >
                   <span

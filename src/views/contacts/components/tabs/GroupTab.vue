@@ -1,28 +1,48 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/stores/chatStore'
+import { useContactStore } from '@/stores/contactStore'
+
+const props = withDefaults(
+  defineProps<{
+    searchKeyword?: string
+  }>(),
+  {
+    searchKeyword: '',
+  },
+)
 
 const chatStore = useChatStore()
+const contactStore = useContactStore()
 
-const groups = [
-  { id: 'group_1', name: 'Coo Chat 开发组', avatar: '' },
-  { id: 'group_2', name: '周末约饭小分队', avatar: '' },
-]
+const filteredGroups = computed(() => {
+  const keyword = props.searchKeyword.trim().toLowerCase()
+  if (!keyword) return contactStore.groupChats
+
+  return contactStore.groupChats.filter((group) => {
+    return (
+      String(group.name || '')
+        .toLowerCase()
+        .includes(keyword) || String(group.id || '').toLowerCase().includes(keyword)
+    )
+  })
+})
 </script>
 
 <template>
   <div class="space-y-1 p-1">
     <div
-      v-for="group in groups"
+      v-for="group in filteredGroups"
       :key="group.id"
       @click="
         chatStore.setActiveChat({
           id: group.id,
           title: group.name,
-          avatar: group.avatar,
+          avatar: group.avatar || '',
           type: 2,
-          subTitle: '群聊',
+          subTitle: group.subTitle || '群聊',
         })
       "
       :class="

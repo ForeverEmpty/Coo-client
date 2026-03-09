@@ -18,6 +18,25 @@ export function useChatSessionConfigSync() {
   let hydrating = false
   let syncedUserId: string | null = null
 
+  const buildFriendMetaMap = async () => {
+    const map: Record<string, { title: string; avatar?: string }> = {}
+    try {
+      const res = await socialApi.getFriendList()
+      ;(res.data || []).forEach((group) => {
+        ;(group.children || []).forEach((friend) => {
+          const title = friend.showName || friend.remark || friend.nickname || friend.id
+          map[String(friend.id)] = {
+            title: String(title || friend.id),
+            avatar: friend.avatar || '',
+          }
+        })
+      })
+    } catch {
+      // Keep empty mapping when friend list is unavailable.
+    }
+    return map
+  }
+
   const persistConfig = useDebounceFn(async () => {
     const token = userStore.token
     const userId = userStore.userInfo?.id
@@ -31,12 +50,20 @@ export function useChatSessionConfigSync() {
     }
   }, 400)
 
+  const persistRecentState = useDebounceFn(() => {
+    const token = userStore.token
+    const userId = userStore.userInfo?.id
+    if (!token || !userId) return
+    if (hydrating || syncedUserId !== userId) return
+    chatStore.persistRecentState(userId)
+  }, 150)
+
   const stopAuthWatch = watch(
     () => [userStore.token, userStore.userInfo?.id] as const,
     async ([token, userId]) => {
       if (!token || !userId) {
         syncedUserId = null
-        chatStore.resetSessionConfig()
+        chatStore.resetRuntimeState()
         return
       }
 
@@ -46,13 +73,39 @@ export function useChatSessionConfigSync() {
 
       hydrating = true
       try {
-        const res = await socialApi.getChatSessionConfig()
-        chatStore.applySessionConfig(res.data)
+        chatStore.resetRuntimeState()
+
+        const hasLocal = chatStore.hydrateRecentState(userId)
+
+        try {
+          const res = await socialApi.getChatSessionConfig()
+          chatStore.applySessionConfig(res.data)
+        } catch {
+          // Keep local pinned/hidden state when remote config request fails.
+        }
+
+        const friendMetaMap = await buildFriendMetaMap()
+        const refreshPromise = chatStore
+          .refreshRecentFromServer({
+            currentUserId: userId,
+            friendMetaMap,
+            limit: 50,
+          })
+          .catch(() => {
+            // Keep local list when backend refresh fails.
+          })
+
+        if (!hasLocal) {
+          await refreshPromise
+        } else {
+          void refreshPromise
+        }
       } catch {
-        chatStore.resetSessionConfig()
+        // Keep local/runtime state when hydration chain fails.
       } finally {
         hydrating = false
         syncedUserId = userId
+        chatStore.persistRecentState(userId)
       }
     },
     { immediate: true },
@@ -66,9 +119,25 @@ export function useChatSessionConfigSync() {
     { deep: true },
   )
 
+  const stopRecentStateWatch = watch(
+    () =>
+      [
+        chatStore.sessionMap,
+        chatStore.unreadByChatId,
+        chatStore.pinnedChatIds,
+        chatStore.hiddenRecentChatIds,
+        chatStore.recentSnapshotByChatId,
+      ] as const,
+    () => {
+      persistRecentState()
+    },
+    { deep: true },
+  )
+
   onUnmounted(() => {
     stopAuthWatch()
     stopConfigWatch()
+    stopRecentStateWatch()
     initialized = false
   })
 }

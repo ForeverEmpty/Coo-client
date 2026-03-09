@@ -1,10 +1,19 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { chatApi } from '@/api/chat'
 import { useChatStore } from '../chatStore'
+
+vi.mock('@/api/chat', () => ({
+  chatApi: {
+    getRecentPrivateChats: vi.fn(),
+  },
+}))
 
 describe('chatStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    localStorage.clear()
+    vi.clearAllMocks()
   })
 
   it('supports setActiveChat with string and meta payload', () => {
@@ -150,5 +159,69 @@ describe('chatStore', () => {
     expect(store.isPinned('1001')).toBe(true)
     store.togglePinChat('1001')
     expect(store.isPinned('1001')).toBe(false)
+  })
+
+  it('persists and hydrates recent state by user id', () => {
+    const store = useChatStore()
+    store.ensureSession({ id: '1001', title: 'Alice', type: 1 })
+    store.appendIncomingMessage('1001', {
+      fromId: '1001',
+      toId: 'self',
+      chatType: 1,
+      content: 'hello',
+      timestamp: 12345,
+    })
+    store.pinChat('1001')
+    store.incrementUnread('1001')
+    store.persistRecentState('u-1')
+
+    setActivePinia(createPinia())
+    const restored = useChatStore()
+    expect(restored.hydrateRecentState('u-1')).toBe(true)
+    expect(restored.recentChats[0]?.chatId).toBe('1001')
+    expect(restored.recentChats[0]?.title).toBe('Alice')
+    expect(restored.recentChats[0]?.pinned).toBe(true)
+    expect(restored.recentChats[0]?.unreadCount).toBe(1)
+  })
+
+  it('refreshes recent chats from server and keeps local newer snapshot', async () => {
+    const mockedApi = vi.mocked(chatApi.getRecentPrivateChats)
+    mockedApi.mockResolvedValue({
+      code: 200,
+      message: 'ok',
+      data: [
+        {
+          peerId: '1001',
+          lastMessage: {
+            id: 'm-1',
+            fromId: '1001',
+            toId: 'self',
+            chatType: 1,
+            contentType: 1,
+            content: 'server older',
+            timestamp: 1000,
+            status: 0,
+          },
+        },
+      ],
+    })
+
+    const store = useChatStore()
+    store.ensureSession({ id: '1001', title: 'AliceLocal', type: 1 })
+    store.appendIncomingMessage('1001', {
+      fromId: '1001',
+      toId: 'self',
+      chatType: 1,
+      content: 'local newer',
+      timestamp: 2000,
+    })
+
+    await store.refreshRecentFromServer({
+      currentUserId: 'self',
+      friendMetaMap: { '1001': { title: 'AliceRemote' } },
+    })
+
+    expect(store.recentChats[0]?.lastMessageText).toBe('local newer')
+    expect(store.sessionMap['1001']?.title).toBe('AliceLocal')
   })
 })

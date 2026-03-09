@@ -29,13 +29,22 @@ import { usePlatform } from '@/composables/usePlatform'
 import { createFriendContextMenu } from '@/config/menu'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/stores/chatStore'
+import { useContactStore } from '@/stores/contactStore'
 import GroupManager from '../GroupManager.vue'
 
+const props = withDefaults(
+  defineProps<{
+    searchKeyword?: string
+  }>(),
+  {
+    searchKeyword: '',
+  },
+)
+
 const chatStore = useChatStore()
+const contactStore = useContactStore()
 const { p, isElectron } = usePlatform()
 const { confirm } = useDialog()
-
-const friendGroups = ref<FriendGroup[]>([])
 const deletingFriendId = ref<string | null>(null)
 
 const confirmDialogOpen = ref(false)
@@ -48,7 +57,29 @@ const remarkValue = ref('')
 const savingRemark = ref(false)
 const movingGroupFriendId = ref<string | null>(null)
 
-const expandedGroupIds = computed(() => friendGroups.value.map((item) => String(item.groupId)))
+const filteredFriendGroups = computed<FriendGroup[]>(() => {
+  const keyword = props.searchKeyword.trim().toLowerCase()
+  if (!keyword) {
+    return contactStore.friendGroups
+  }
+
+  return contactStore.friendGroups
+    .map((group) => ({
+      ...group,
+      children: group.children.filter((friend) => {
+        const targets = [
+          friend.showName,
+          friend.remark,
+          friend.nickname,
+          String(friend.id || ''),
+        ]
+        return targets.some((field) => String(field || '').toLowerCase().includes(keyword))
+      }),
+    }))
+    .filter((group) => group.children.length > 0)
+})
+
+const expandedGroupIds = computed(() => filteredFriendGroups.value.map((item) => String(item.groupId)))
 
 const handleManageGroups = () => {
   if (isElectron) {
@@ -61,10 +92,9 @@ const handleManageGroups = () => {
   manageGroupOpen.value = true
 }
 
-const fetchFriendGroups = async () => {
+const fetchFriendGroups = async (force = false) => {
   try {
-    const res = await socialApi.getFriendList()
-    friendGroups.value = res.data || []
+    await contactStore.fetchFriendGroups(force)
   } catch {}
 }
 
@@ -80,7 +110,7 @@ const closeRemarkDialog = () => {
 }
 
 const findFriendById = (friendId: string) => {
-  for (const group of friendGroups.value) {
+  for (const group of contactStore.friendGroups) {
     const matched = group.children.find((friend) => friend.id === friendId)
     if (matched) {
       return matched
@@ -121,7 +151,7 @@ const deleteFriend = async (friend: Friend) => {
 
     toast.success('已删除好友（单向删除）')
     closeDeleteDialog()
-    await fetchFriendGroups()
+    await fetchFriendGroups(true)
   } finally {
     deletingFriendId.value = null
   }
@@ -177,7 +207,7 @@ const submitRemark = async () => {
     })
     toast.success('备注已更新')
     closeRemarkDialog()
-    await fetchFriendGroups()
+    await fetchFriendGroups(true)
     syncActiveChatMeta(friend.id)
   } finally {
     savingRemark.value = false
@@ -196,7 +226,7 @@ const moveFriendGroup = async (friend: Friend, targetGroupId: string) => {
       groupId: targetGroupId,
     })
     toast.success('已更换分组')
-    await fetchFriendGroups()
+    await fetchFriendGroups(true)
     syncActiveChatMeta(friend.id)
   } finally {
     movingGroupFriendId.value = null
@@ -207,7 +237,7 @@ const getFriendMenu = (friend: Friend) =>
   createFriendContextMenu({
     friend,
     deletingFriendId: deletingFriendId.value,
-    groups: friendGroups.value.map((group) => ({
+    groups: contactStore.friendGroups.map((group) => ({
       groupId: String(group.groupId),
       groupName: group.groupName,
     })),
@@ -226,7 +256,7 @@ onMounted(() => {
   void fetchFriendGroups()
   if (isElectron) {
     p.on('group-updated', () => {
-      void fetchFriendGroups()
+      void fetchFriendGroups(true)
     })
   }
 })
@@ -248,7 +278,7 @@ onMounted(() => {
 
     <Accordion type="multiple" class="w-full" :default-value="expandedGroupIds">
       <AccordionItem
-        v-for="group in friendGroups"
+        v-for="group in filteredFriendGroups"
         :key="group.groupId"
         :value="String(group.groupId)"
         class="border-none"
@@ -354,7 +384,7 @@ onMounted(() => {
         class="overflow-hidden border-none bg-background p-0 sm:max-w-md"
         :show-close-button="false"
       >
-        <GroupManager @close="manageGroupOpen = false" @update="fetchFriendGroups" />
+        <GroupManager @close="manageGroupOpen = false" @update="fetchFriendGroups(true)" />
       </DialogContent>
     </Dialog>
   </div>

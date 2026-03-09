@@ -6,14 +6,20 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { QuickContextMenu } from '@/components/ui/context-menu'
 import { createRecentChatContextMenu } from '@/config/menu'
+import { useSuggestionNavigator } from '@/composables/useSuggestionNavigator'
 import { cn } from '@/lib/utils'
 import { useChatStore, type RecentChatItem } from '@/stores/chatStore'
 
+const MAX_CHAT_SUGGESTIONS = 8
+
 const chatStore = useChatStore()
 const keyword = ref('')
+const suggestionVisible = ref(false)
+
+const normalizedKeyword = computed(() => keyword.value.trim().toLowerCase())
 
 const filteredChats = computed(() => {
-  const q = keyword.value.trim().toLowerCase()
+  const q = normalizedKeyword.value
   if (!q) {
     return chatStore.recentChats
   }
@@ -21,6 +27,17 @@ const filteredChats = computed(() => {
   return chatStore.recentChats.filter((item) => {
     return item.title.toLowerCase().includes(q) || item.lastMessageText.toLowerCase().includes(q)
   })
+})
+
+const suggestionItems = computed(() => {
+  if (!normalizedKeyword.value) {
+    return [] as RecentChatItem[]
+  }
+  return filteredChats.value.slice(0, MAX_CHAT_SUGGESTIONS)
+})
+
+const showSuggestionPanel = computed(() => {
+  return suggestionVisible.value && normalizedKeyword.value.length > 0
 })
 
 const formatLastTime = (timestamp: number) => {
@@ -51,6 +68,47 @@ const openChat = (item: RecentChatItem) => {
   })
 }
 
+const selectSuggestion = (item: RecentChatItem) => {
+  openChat(item)
+  keyword.value = item.title
+  suggestionVisible.value = false
+  resetHighlight()
+}
+
+const { highlightedIndex, handleKeydown, resetHighlight } = useSuggestionNavigator<RecentChatItem>({
+  items: suggestionItems,
+  onSelect: selectSuggestion,
+})
+
+const handleSearchFocus = () => {
+  suggestionVisible.value = true
+}
+
+const handleSearchInput = () => {
+  suggestionVisible.value = true
+}
+
+const handleSearchBlur = () => {
+  setTimeout(() => {
+    suggestionVisible.value = false
+    resetHighlight()
+  }, 120)
+}
+
+const handleSearchKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') {
+    suggestionVisible.value = false
+    resetHighlight()
+    return
+  }
+
+  const handled = handleKeydown(event, showSuggestionPanel.value)
+  if (handled && event.key === 'Enter') {
+    suggestionVisible.value = false
+    resetHighlight()
+  }
+}
+
 const deleteRecent = (chatId: string) => {
   if (chatStore.activeChatId === chatId) {
     chatStore.setActiveChat(null)
@@ -73,10 +131,46 @@ const getRecentMenu = (item: RecentChatItem) =>
 <template>
   <section class="flex h-full flex-col overflow-hidden bg-card/10">
     <div class="shrink-0 p-4">
-      <h2 class="mb-4 text-xl font-bold">消息</h2>
+      <h2 class="mb-4 text-xl font-bold">最近会话</h2>
       <div class="relative">
         <Search class="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-        <Input v-model="keyword" placeholder="搜索会话..." class="h-10 border-none bg-muted/30 pl-9" />
+        <Input
+          v-model="keyword"
+          placeholder="搜索会话..."
+          class="h-10 border-none bg-muted/30 pl-9"
+          @focus="handleSearchFocus"
+          @blur="handleSearchBlur"
+          @input="handleSearchInput"
+          @keydown="handleSearchKeydown"
+        />
+
+        <div
+          v-if="showSuggestionPanel"
+          class="absolute z-30 mt-1 w-full rounded-md border bg-popover p-1 shadow-md"
+        >
+          <div v-if="suggestionItems.length > 0" class="max-h-72 overflow-auto">
+            <button
+              v-for="(item, index) in suggestionItems"
+              :key="item.chatId"
+              type="button"
+              class="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-sm"
+              :class="
+                cn(
+                  highlightedIndex === index
+                    ? 'bg-accent text-accent-foreground'
+                    : 'hover:bg-accent/60',
+                )
+              "
+              @mousedown.prevent="selectSuggestion(item)"
+            >
+              <span class="truncate">{{ item.title }}</span>
+              <span class="ml-2 shrink-0 text-xs text-muted-foreground truncate max-w-[45%]">
+                {{ previewText(item.lastMessageText) }}
+              </span>
+            </button>
+          </div>
+          <p v-else class="px-2 py-2 text-xs text-muted-foreground">无匹配会话</p>
+        </div>
       </div>
     </div>
 
@@ -131,8 +225,8 @@ const getRecentMenu = (item: RecentChatItem) =>
       </div>
 
       <div v-else class="flex h-full flex-col items-center justify-center gap-2 p-6 text-muted-foreground">
-        <p class="text-sm">暂无最近消息</p>
-        <p class="text-xs opacity-70">开始聊天后会在这里显示最近会话</p>
+        <p class="text-sm">暂无会话</p>
+        <p class="text-xs opacity-70">收到或发送消息后会出现在这里</p>
       </div>
     </ScrollArea>
   </section>

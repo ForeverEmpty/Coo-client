@@ -154,6 +154,11 @@ export interface ChatHistoryCursor {
   nextCursor?: string | null
 }
 
+export interface RecentPrivateChatItemVO {
+  peerId: string
+  lastMessage: ChatHistoryMessage
+}
+
 export interface ChatSessionConfig {
   pinnedChatIds: string[]
   hiddenRecentChatIds: string[]
