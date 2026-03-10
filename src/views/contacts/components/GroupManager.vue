@@ -27,6 +27,7 @@ const notifyUpdate = () => {
 
 const groups = ref<FriendGroup[]>([])
 const loading = ref(false)
+const loaded = ref(false)
 
 const isDefaultGroup = (groupId: string) => groupId === '0'
 
@@ -46,11 +47,15 @@ const editName = ref('')
 const isAdding = ref(false)
 const newGroupName = ref('')
 
-const fetchGroups = async () => {
+const fetchGroups = async (force = false) => {
+  if (loading.value) return
+  if (loaded.value && !force) return
+
   loading.value = true
   try {
     const res = await socialApi.getFriendList()
     groups.value = res.data || []
+    loaded.value = true
   } finally {
     loading.value = false
   }
@@ -67,7 +72,7 @@ const handleAddGroup = async () => {
     toast.success('分组创建成功')
     newGroupName.value = ''
     isAdding.value = false
-    await fetchGroups()
+    await fetchGroups(true)
     notifyUpdate()
   } catch {}
 }
@@ -94,7 +99,7 @@ const saveEdit = async (groupId: string) => {
     await socialApi.updateFriendGroup(groupId, editName.value.trim())
     toast.success('分组重命名成功')
     cancelEdit()
-    await fetchGroups()
+    await fetchGroups(true)
     notifyUpdate()
   } catch {}
 }
@@ -105,7 +110,7 @@ const handleDelete = async (groupId: string) => {
   try {
     await socialApi.deleteFriendGroup(groupId)
     toast.success('分组删除成功')
-    await fetchGroups()
+    await fetchGroups(true)
     notifyUpdate()
   } catch {}
 }
@@ -117,7 +122,7 @@ const handleDragEnd = async () => {
     await socialApi.sortFriendGroups(groupIds)
     notifyUpdate()
   } catch {
-    await fetchGroups() // revert
+    await fetchGroups(true) // revert
   }
 }
 
@@ -130,7 +135,7 @@ const handleCloseWindow = () => {
 }
 
 onMounted(() => {
-  fetchGroups()
+  void fetchGroups()
 })
 </script>
 

@@ -18,4 +18,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   /* eslint-enable */
   openLogFolder: () => ipcRenderer.send('open-log-folder-request'),
+  chatStorage: {
+    getConfig: () => ipcRenderer.invoke('chat-storage:get-config'),
+    setConfig: (config: { directory: string; globalLimitMB: number; perChatLimitMB: number }) =>
+      ipcRenderer.invoke('chat-storage:set-config', config),
+    chooseDirectory: () => ipcRenderer.invoke('chat-storage:choose-directory'),
+    readState: (userId: string) => ipcRenderer.invoke('chat-storage:read-state', userId),
+    writeState: (payload: { userId: string; payload: string }) =>
+      ipcRenderer.invoke('chat-storage:write-state', payload),
+  },
 })

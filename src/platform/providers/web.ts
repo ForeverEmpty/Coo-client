@@ -66,6 +66,18 @@ export const WebProvider: PlatformCapabilities = {
     },
   },
 
+  chatStorage: {
+    getConfig: async () => ({
+      directory: '',
+      globalLimitMB: 256,
+      perChatLimitMB: 32,
+    }),
+    setConfig: async (config) => config,
+    chooseDirectory: async () => null,
+    readState: async () => null,
+    writeState: async () => false,
+  },
+
   device: {
     vibrate: () => {
       if ('vibrate' in navigator) {
@@ -73,8 +85,10 @@ export const WebProvider: PlatformCapabilities = {
       }
     },
     getBattery: async () => {
-      if ('getBattery' in navigator) {
-        const battery = await navigator.getBattery()
+      const getBattery = (navigator as Navigator & { getBattery?: () => Promise<{ level: number }> })
+        .getBattery
+      if (typeof getBattery === 'function') {
+        const battery = await getBattery()
         return battery.level * 100
       }
       return 0

@@ -89,6 +89,16 @@ export const WindowPresets: Record<string, IWindowPreset> = {
     resizable: false,
     modal: true,
   },
+  IMAGE_EDITOR: {
+    ...commonOptions,
+    width: 760,
+    height: 620,
+    minWidth: 680,
+    minHeight: 560,
+    frame: false,
+    resizable: true,
+    hasShadow: true,
+  },
 }
 
 export const WindowUrls: Record<string, string> = {
@@ -99,4 +109,5 @@ export const WindowUrls: Record<string, string> = {
   FRIEND_APPLY: '/contacts/apply',
   GROUP_MANAGE: '/contacts/group-manage',
   ACCEPT_APPLY: '/contacts/accept-apply',
+  IMAGE_EDITOR: '/profile/image-editor',
 }

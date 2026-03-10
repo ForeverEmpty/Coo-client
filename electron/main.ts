@@ -3,6 +3,7 @@ import { app, ipcMain } from 'electron'
 import { logger } from './services/log.service'
 import { windowService } from './services/window.service'
 import './services/dialog.service'
+import './services/chat-cache.service'
 import { WindowType } from '@/common/enum'
 
 ipcMain.on('log-to-main', (_, { level, message, args }) => {

@@ -7,11 +7,19 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { sidebarMenuItems, sidebarBottomItems } from '@/config/menu'
+import { useUserStore } from '@/stores/userStore'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 
 const activePath = computed(() => route.path)
+const userAvatar = computed(() => userStore.userInfo?.avatar || '')
+const userAvatarFallback = computed(() => {
+  const nickname = userStore.userInfo?.nickname || ''
+  if (!nickname.trim()) return 'U'
+  return nickname.trim().charAt(0).toUpperCase()
+})
 
 const navigate = (path: string) => {
   router.push(path)
@@ -33,8 +41,8 @@ const handleUserClick = () => {
               @click="handleUserClick"
             >
               <Avatar class="h-10 w-10 border-2 border-primary/10">
-                <AvatarImage src="https://github.com/shadcn.png" alt="Avatar" />
-                <AvatarFallback>Coo</AvatarFallback>
+                <AvatarImage :src="userAvatar" alt="Avatar" />
+                <AvatarFallback>{{ userAvatarFallback }}</AvatarFallback>
               </Avatar>
             </div>
           </TooltipTrigger>

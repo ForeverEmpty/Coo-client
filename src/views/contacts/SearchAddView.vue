@@ -1,45 +1,50 @@
-<script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { Search, X, UserPlus, Users, Minus, ArrowLeft, Loader2 } from 'lucide-vue-next'
+﻿<script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { ArrowLeft, Loader2, Minus, Search, UserPlus, Users, X } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
-
-import { Input } from '@/components/ui/input'
+import { toast } from 'vue-sonner'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
 import { usePlatform } from '@/composables/usePlatform'
 import { socialApi } from '@/api/social'
 import { cn } from '@/lib/utils'
-import type { FriendApplySource, UserSimple } from '@/api/types'
+import type { FriendApplySource, GroupSearchItem, UserSimple } from '@/api/types'
 import { useUserStore } from '@/stores/userStore'
-
-import FriendApplyView from '../components/FriendApplyView.vue'
 import CompactProfile from './CompactProfile.vue'
+import FriendApplyView from '@/views/components/FriendApplyView.vue'
 
 const { p, isElectron } = usePlatform()
 const router = useRouter()
 const userStore = useUserStore()
 
-// --- 搜索状态 ---
 const keyword = ref('')
-const activeTab = ref('user')
-const results = ref<UserSimple[]>([])
+const activeTab = ref<'user' | 'group'>('user')
+const userResults = ref<UserSimple[]>([])
+const groupResults = ref<GroupSearchItem[]>([])
 const loading = ref(false)
-const isFirstSearch = ref(true) // 是否尚未进行过搜索
+const isFirstSearch = ref(true)
 
-// --- 分页状态 ---
 const pageNum = ref(1)
 const pageSize = ref(15)
-const hasMore = ref(false)
+const hasMoreUsers = ref(false)
 const loadMoreTrigger = ref<HTMLElement | null>(null)
 let observer: IntersectionObserver | null = null
 
-// --- Web 端专用状态 ---
 const webDetailOpen = ref(false)
 const webApplyOpen = ref(false)
+const webGroupApplyOpen = ref(false)
 const selectedUser = ref<UserSimple | null>(null)
 const selectedApplySource = ref<FriendApplySource>('SEARCH')
+const selectedGroup = ref<GroupSearchItem | null>(null)
+const groupApplyReason = ref('')
+const groupApplySaving = ref(false)
+
+const currentUserId = computed(() => String(userStore.userInfo?.id || ''))
+const visibleResults = computed(() => (activeTab.value === 'user' ? userResults.value : groupResults.value))
 
 const handleClose = () => {
   if (isElectron) p.app.close()
@@ -48,51 +53,129 @@ const handleClose = () => {
 
 const handleMinimize = () => p.app.minimize()
 
-// --- 核心搜索逻辑 ---
-const doSearch = async (isNewSearch = true) => {
+const searchUsers = async (isNewSearch = true) => {
   if (!keyword.value.trim()) return
 
   if (isNewSearch) {
     pageNum.value = 1
-    results.value = []
+    userResults.value = []
     isFirstSearch.value = false
   }
 
   loading.value = true
   try {
-    // 调用之前定义的 ES 全局搜索接口
-    const res = await socialApi.searchGlobal(keyword.value, pageNum.value, pageSize.value)
+    const res = await socialApi.searchGlobal(keyword.value.trim(), pageNum.value, pageSize.value)
     const data = res.data
-
-    const list = data.list.filter((u: UserSimple) => u.id !== userStore.userInfo?.id)
+    const list = (data.list || []).filter((user) => String(user.id) !== currentUserId.value)
 
     if (isNewSearch) {
-      results.value = list
+      userResults.value = list
     } else {
-      results.value = [...results.value, ...list]
+      userResults.value = [...userResults.value, ...list]
     }
-
-    hasMore.value = data.hasMore
-  } catch (error) {
-    console.error('搜索失败:', error)
+    hasMoreUsers.value = Boolean(data.hasMore)
   } finally {
     loading.value = false
   }
 }
 
-// 加载下一页
-const loadNextPage = () => {
-  if (loading.value || !hasMore.value) return
-  pageNum.value++
-  doSearch(false)
+const searchGroups = async () => {
+  if (!keyword.value.trim()) return
+
+  loading.value = true
+  try {
+    const res = await socialApi.searchGroups(keyword.value.trim())
+    groupResults.value = res.data || []
+    isFirstSearch.value = false
+  } finally {
+    loading.value = false
+  }
 }
 
-// --- 自动触发加载逻辑 ---
+const doSearch = async (isNewSearch = true) => {
+  if (!keyword.value.trim()) return
+  if (activeTab.value === 'user') {
+    await searchUsers(isNewSearch)
+  } else {
+    await searchGroups()
+  }
+}
+
+const loadNextPage = () => {
+  if (activeTab.value !== 'user' || loading.value || !hasMoreUsers.value) return
+  pageNum.value += 1
+  void searchUsers(false)
+}
+
+const handleAddFriend = (user: UserSimple) => {
+  selectedApplySource.value = 'SEARCH'
+  if (isElectron) {
+    p.send('open-window', {
+      type: 'FRIEND_APPLY',
+      route: `/contacts/apply?id=${user.id}&nickname=${encodeURIComponent(user.nickname)}&avatar=${encodeURIComponent(user.avatar || '')}&source=SEARCH`,
+    })
+  } else {
+    selectedUser.value = user
+    webApplyOpen.value = true
+  }
+}
+
+const handleUserCardClick = (user: UserSimple) => {
+  selectedApplySource.value = 'SEARCH'
+  if (isElectron) {
+    p.send('open-window', {
+      type: 'USER_DETAIL',
+      route: `/contacts/profile-compact/${user.id}?source=SEARCH`,
+    })
+  } else {
+    selectedUser.value = user
+    webDetailOpen.value = true
+  }
+}
+
+const openGroupDetail = (group: GroupSearchItem) => {
+  selectedGroup.value = group
+  router.push(`/groups/${group.id}`)
+}
+
+const openGroupApply = (group: GroupSearchItem) => {
+  selectedGroup.value = group
+  groupApplyReason.value = ''
+  webGroupApplyOpen.value = true
+}
+
+const submitGroupApply = async () => {
+  if (!selectedGroup.value) return
+  groupApplySaving.value = true
+  try {
+    await socialApi.applyToGroup(selectedGroup.value.id, {
+      reason: groupApplyReason.value.trim() || undefined,
+    })
+    toast.success('入群申请已提交')
+    webGroupApplyOpen.value = false
+    await searchGroups()
+  } finally {
+    groupApplySaving.value = false
+  }
+}
+
+const onGoToApply = (source: FriendApplySource) => {
+  selectedApplySource.value = source
+  webDetailOpen.value = false
+  setTimeout(() => {
+    webApplyOpen.value = true
+  }, 150)
+}
+
+watch(activeTab, () => {
+  if (!keyword.value.trim()) return
+  void doSearch(true)
+})
+
 onMounted(() => {
-  // 创建交叉观察者：当触发器出现在屏幕底部时加载更多
   observer = new IntersectionObserver(
     (entries) => {
-      if (entries[0]?.isIntersecting && hasMore.value && !loading.value) {
+      if (entries[0]?.isIntersecting && !loading.value && hasMoreUsers.value) {
         loadNextPage()
       }
     },
@@ -107,40 +190,6 @@ onMounted(() => {
 onUnmounted(() => {
   if (observer) observer.disconnect()
 })
-
-const handleAddFriend = (user: UserSimple) => {
-  selectedApplySource.value = 'SEARCH'
-  if (isElectron) {
-    p.send('open-window', {
-      type: 'FRIEND_APPLY',
-      route: `/contacts/apply?id=${user.id}&nickname=${user.nickname}&avatar=${user.avatar}&source=SEARCH`,
-    })
-  } else {
-    selectedUser.value = user
-    webApplyOpen.value = true
-  }
-}
-
-const handleCardClick = (user: UserSimple) => {
-  selectedApplySource.value = 'SEARCH'
-  if (isElectron) {
-    p.send('open-window', {
-      type: 'USER_DETAIL',
-      route: `/contacts/profile-compact/${user.id}?source=SEARCH`,
-    })
-  } else {
-    selectedUser.value = user
-    webDetailOpen.value = true
-  }
-}
-
-const onGoToApply = (source: FriendApplySource) => {
-  selectedApplySource.value = source
-  webDetailOpen.value = false
-  setTimeout(() => {
-    webApplyOpen.value = true
-  }, 200)
-}
 </script>
 
 <template>
@@ -155,36 +204,31 @@ const onGoToApply = (source: FriendApplySource) => {
     <div
       :class="
         cn(
-          'flex flex-col w-full bg-background overflow-hidden transition-all',
-          isElectron ? 'h-full' : 'max-w-2xl h-150 rounded-xl border shadow-sm',
+          'flex w-full flex-col overflow-hidden bg-background transition-all',
+          isElectron ? 'h-full' : 'h-[42rem] max-w-3xl rounded-xl border shadow-sm',
         )
       "
     >
-      <!-- 1. 标题栏 -->
       <div
-        class="h-12 flex items-center justify-between px-4 border-b shrink-0 bg-background z-50 relative"
+        class="relative z-50 flex h-12 shrink-0 items-center justify-between border-b bg-background px-4"
         :style="isElectron ? '-webkit-app-region: drag' : ''"
       >
-        <div class="font-bold text-base flex items-center gap-2">
+        <div class="flex items-center gap-2 text-base font-bold">
           <Button
             v-if="!isElectron"
             variant="ghost"
             size="icon"
-            class="h-8 w-8 -ml-2"
+            class="-ml-2 h-8 w-8"
             @click="handleClose"
           >
             <ArrowLeft class="h-4 w-4" />
           </Button>
-          添加好友/群组
+          添加好友 / 群聊
         </div>
+
         <div class="flex items-center gap-1" style="-webkit-app-region: no-drag">
           <template v-if="isElectron">
-            <Button
-              variant="ghost"
-              size="icon"
-              class="h-8 w-8 hover:bg-muted"
-              @click="handleMinimize"
-            >
+            <Button variant="ghost" size="icon" class="h-8 w-8 hover:bg-muted" @click="handleMinimize">
               <Minus class="h-4 w-4" />
             </Button>
             <Button
@@ -199,139 +243,170 @@ const onGoToApply = (source: FriendApplySource) => {
         </div>
       </div>
 
-      <!-- 2. 内容区域 -->
-      <div class="flex-1 flex flex-col min-h-0 bg-background">
-        <!-- 搜索框固定在上方 -->
-        <div class="p-6 pb-2 shrink-0">
-          <Tabs v-model="activeTab" class="w-full flex flex-col">
-            <div class="flex justify-center mb-6">
+      <div class="flex min-h-0 flex-1 flex-col bg-background">
+        <div class="shrink-0 p-6 pb-2">
+          <Tabs v-model="activeTab" class="flex w-full flex-col">
+            <div class="mb-6 flex justify-center">
               <TabsList class="grid w-full grid-cols-2">
-                <TabsTrigger value="user">找人</TabsTrigger>
-                <TabsTrigger value="group">找群</TabsTrigger>
+                <TabsTrigger value="user">用户</TabsTrigger>
+                <TabsTrigger value="group">群聊</TabsTrigger>
               </TabsList>
             </div>
 
             <div class="flex justify-center">
-              <div class="flex gap-3 w-full">
+              <div class="flex w-full gap-3">
                 <div class="relative flex-1">
                   <Search class="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     v-model="keyword"
-                    placeholder="请输入账号/昵称"
-                    class="pl-9 h-10 no-drag focus-visible:ring-1"
+                    :placeholder="activeTab === 'user' ? '输入昵称、用户名或 ID' : '输入群名称或群号'"
+                    class="h-10 pl-9 no-drag focus-visible:ring-1"
                     @keyup.enter="doSearch(true)"
                   />
                 </div>
-                <Button @click="doSearch(true)" class="no-drag w-24" :disabled="loading">
-                  <Loader2 v-if="loading && isFirstSearch" class="mr-2 h-4 w-4 animate-spin" />
-                  搜索
+                <Button class="w-24 no-drag" :disabled="loading" @click="doSearch(true)">
+                  <Loader2 v-if="loading" class="mr-2 h-4 w-4 animate-spin" />搜索
                 </Button>
               </div>
             </div>
           </Tabs>
         </div>
 
-        <!-- 3. 结果滚动区 -->
-        <div class="flex-1 overflow-y-auto custom-scrollbar p-6 pt-2">
-          <!-- 初始状态 -->
+        <div class="custom-scrollbar flex-1 overflow-y-auto p-6 pt-2">
           <div
             v-if="isFirstSearch"
-            class="flex flex-col items-center justify-center h-full text-muted-foreground text-sm border-2 border-dashed rounded-xl bg-muted/20"
+            class="flex h-full flex-col items-center justify-center rounded-xl border-2 border-dashed bg-muted/20 text-sm text-muted-foreground"
           >
-            <div class="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+            <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
               <UserPlus v-if="activeTab === 'user'" class="h-8 w-8 opacity-50" />
               <Users v-else class="h-8 w-8 opacity-50" />
             </div>
-            <p>
-              {{
-                activeTab === 'user'
-                  ? '输入关键词，寻找志同道合的好友'
-                  : '输入群号或关键词，加入感兴趣的群聊'
-              }}
-            </p>
+            <p>{{ activeTab === 'user' ? '搜索用户并发起好友申请' : '搜索群聊并申请加入' }}</p>
           </div>
 
-          <!-- 搜索结果列表 -->
-          <div v-else-if="results.length > 0" class="space-y-3 mx-auto">
-            <div
-              v-for="user in results"
-              :key="user.id"
-              class="flex items-center justify-between p-3 rounded-xl border bg-card hover:border-primary/50 transition-all group"
-              @click="handleCardClick(user)"
-            >
-              <div class="flex items-center gap-3">
-                <Avatar class="h-11 w-11 border">
-                  <AvatarImage :src="user.avatar || ''" />
-                  <AvatarFallback class="bg-primary/10 text-primary">{{
-                    user.nickname[0]
-                  }}</AvatarFallback>
-                </Avatar>
-                <div class="min-w-0">
-                  <div class="font-bold text-sm flex items-center gap-2">
-                    <span class="truncate">{{ user.nickname }}</span>
+          <div v-else-if="visibleResults.length > 0" class="mx-auto space-y-3">
+            <template v-if="activeTab === 'user'">
+              <div
+                v-for="user in userResults"
+                :key="user.id"
+                class="group flex items-center justify-between rounded-xl border bg-card p-3 transition-all hover:border-primary/50"
+                @click="handleUserCardClick(user)"
+              >
+                <div class="flex items-center gap-3">
+                  <Avatar class="h-11 w-11 border">
+                    <AvatarImage :src="user.avatar || ''" />
+                    <AvatarFallback class="bg-primary/10 text-primary">{{ user.nickname?.[0] || '?' }}</AvatarFallback>
+                  </Avatar>
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2 text-sm font-bold">
+                      <span class="truncate">{{ user.nickname }}</span>
+                    </div>
+                    <div class="font-mono text-[11px] text-muted-foreground">ID: {{ user.id }}</div>
                   </div>
-                  <div class="text-[11px] text-muted-foreground font-mono">ID: {{ user.id }}</div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  class="h-8 rounded-lg transition-all active:scale-95"
+                  @click.stop="handleAddFriend(user)"
+                >
+                  <UserPlus class="mr-1.5 h-3.5 w-3.5" />加好友
+                </Button>
+              </div>
+
+              <div ref="loadMoreTrigger" class="flex justify-center py-4">
+                <div v-if="loading" class="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 class="h-3 w-3 animate-spin" />正在加载更多...
+                </div>
+                <div
+                  v-else-if="!hasMoreUsers"
+                  class="text-[10px] uppercase tracking-widest text-muted-foreground opacity-50"
+                >
+                  已加载全部结果
                 </div>
               </div>
-              <Button
-                size="sm"
-                variant="secondary"
-                class="h-8 rounded-lg transition-all active:scale-95"
-                @click.stop="handleAddFriend(user)"
-              >
-                <UserPlus class="h-3.5 w-3.5 mr-1.5" /> 加好友
-              </Button>
-            </div>
+            </template>
 
-            <!-- 滚动加载触发器 -->
-            <div ref="loadMoreTrigger" class="py-4 flex justify-center">
-              <div v-if="loading" class="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 class="h-3 w-3 animate-spin" /> 加载更多...
-              </div>
+            <template v-else>
               <div
-                v-else-if="!hasMore"
-                class="text-[10px] text-muted-foreground opacity-50 uppercase tracking-widest"
+                v-for="group in groupResults"
+                :key="group.id"
+                class="flex items-center justify-between rounded-xl border bg-card p-3 transition-all hover:border-primary/50"
               >
-                已显示全部结果
+                <div class="flex min-w-0 cursor-pointer items-center gap-3" @click="openGroupDetail(group)">
+                  <Avatar class="h-11 w-11 border">
+                    <AvatarImage :src="group.avatar || ''" />
+                    <AvatarFallback class="bg-indigo-100 text-indigo-600">群</AvatarFallback>
+                  </Avatar>
+                  <div class="min-w-0">
+                    <div class="truncate text-sm font-bold">{{ group.name }}</div>
+                    <div class="truncate text-[11px] text-muted-foreground">
+                      {{ group.memberCount }} 人 · {{ group.notice || '暂无群公告' }}
+                    </div>
+                    <div class="font-mono text-[11px] text-muted-foreground">群号: {{ group.id }}</div>
+                  </div>
+                </div>
+                <div class="flex shrink-0 items-center gap-2">
+                  <Button v-if="group.joined" size="sm" variant="outline" @click.stop="openGroupDetail(group)">
+                    查看
+                  </Button>
+                  <Button v-else-if="group.pending" size="sm" variant="secondary" disabled>
+                    等待审批
+                  </Button>
+                  <Button v-else size="sm" @click.stop="openGroupApply(group)">申请加入</Button>
+                </div>
               </div>
-            </div>
+            </template>
           </div>
 
-          <!-- 无结果状态 -->
           <div
             v-else-if="!loading"
-            class="flex flex-col items-center justify-center h-64 text-muted-foreground"
+            class="flex h-64 flex-col items-center justify-center text-muted-foreground"
           >
-            <Search class="h-10 w-10 mb-2 opacity-20" />
-            <p class="text-sm">未找到匹配的结果</p>
+            <Search class="mb-2 h-10 w-10 opacity-20" />
+            <p class="text-sm">没有找到匹配结果</p>
           </div>
         </div>
       </div>
     </div>
 
     <template v-if="!isElectron">
-      <!-- 详情弹窗 -->
       <Dialog v-model:open="webDetailOpen">
-        <DialogContent class="p-0 overflow-hidden">
+        <DialogContent class="overflow-hidden p-0">
           <CompactProfile
-            :userId="selectedUser?.id"
+            :user-id="selectedUser?.id"
             :source="selectedApplySource"
             @goToApply="onGoToApply"
           />
         </DialogContent>
       </Dialog>
 
-      <!-- 申请弹窗 -->
       <Dialog v-model:open="webApplyOpen">
-        <DialogContent class="p-0 overflow-hidden border-none">
-          <FriendApplyView
-            :user="selectedUser"
-            :source="selectedApplySource"
-            @close="webApplyOpen = false"
-          />
+        <DialogContent class="overflow-hidden border-none p-0">
+          <FriendApplyView :user="selectedUser" :source="selectedApplySource" @close="webApplyOpen = false" />
         </DialogContent>
       </Dialog>
     </template>
+
+    <Dialog v-model:open="webGroupApplyOpen">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>申请加入群聊</DialogTitle>
+          <DialogDescription>
+            {{ selectedGroup ? `向「${selectedGroup.name}」发送入群申请` : '发送入群申请' }}
+          </DialogDescription>
+        </DialogHeader>
+
+        <Textarea v-model="groupApplyReason" rows="4" placeholder="输入申请理由（可选）" />
+
+        <DialogFooter>
+          <Button variant="outline" @click="webGroupApplyOpen = false">取消</Button>
+          <Button :disabled="groupApplySaving" @click="submitGroupApply">
+            {{ groupApplySaving ? '提交中...' : '提交申请' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
@@ -345,20 +420,5 @@ const onGoToApply = (source: FriendApplySource) => {
 .custom-scrollbar:hover::-webkit-scrollbar-thumb {
   background: hsl(var(--muted-foreground) / 0.2);
   border-radius: 4px;
-}
-
-.group {
-  animation: slideUp 0.3s ease-out forwards;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 </style>

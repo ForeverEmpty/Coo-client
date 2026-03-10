@@ -12,6 +12,26 @@ export interface IElectronAPI {
   /* eslint-enable */
 
   openLogFolder: () => void
+
+  chatStorage: {
+    getConfig: () => Promise<{
+      directory: string
+      globalLimitMB: number
+      perChatLimitMB: number
+    }>
+    setConfig: (config: {
+      directory: string
+      globalLimitMB: number
+      perChatLimitMB: number
+    }) => Promise<{
+      directory: string
+      globalLimitMB: number
+      perChatLimitMB: number
+    }>
+    chooseDirectory: () => Promise<string | null>
+    readState: (userId: string) => Promise<string | null>
+    writeState: (payload: { userId: string; payload: string }) => Promise<boolean>
+  }
 }
 
 declare global {

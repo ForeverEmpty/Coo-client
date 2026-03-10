@@ -1,5 +1,6 @@
 export enum MessageType {
   CHAT = 'CHAT',
+  RECALL = 'RECALL',
   PING = 'PING',
   PONG = 'PONG',
   ACK = 'ACK',

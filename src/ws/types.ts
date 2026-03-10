@@ -1,4 +1,4 @@
-import type { ChatMessage, ProtocolModel } from '@/api/types'
+import type { ChatMessage, ChatRecallMessage, ProtocolModel } from '@/api/types'
 
 export type WSStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error'
 
@@ -30,6 +30,7 @@ export interface WSProtocolMessageEventMap {
   'raw-message': string
   message: ProtocolModel
   chat: ProtocolModel<ChatMessage>
+  recall: ProtocolModel<ChatRecallMessage>
   system: ProtocolModel
   pong: ProtocolModel
   ack: ProtocolModel<string>

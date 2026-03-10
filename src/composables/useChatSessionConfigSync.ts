@@ -55,7 +55,7 @@ export function useChatSessionConfigSync() {
     const userId = userStore.userInfo?.id
     if (!token || !userId) return
     if (hydrating || syncedUserId !== userId) return
-    chatStore.persistRecentState(userId)
+    void chatStore.persistRecentState(userId)
   }, 150)
 
   const stopAuthWatch = watch(
@@ -75,7 +75,8 @@ export function useChatSessionConfigSync() {
       try {
         chatStore.resetRuntimeState()
 
-        const hasLocal = chatStore.hydrateRecentState(userId)
+        await chatStore.loadStorageConfig()
+        const hasLocal = await chatStore.hydrateRecentState(userId)
 
         try {
           const res = await socialApi.getChatSessionConfig()
@@ -105,7 +106,7 @@ export function useChatSessionConfigSync() {
       } finally {
         hydrating = false
         syncedUserId = userId
-        chatStore.persistRecentState(userId)
+        void chatStore.persistRecentState(userId)
       }
     },
     { immediate: true },
@@ -123,6 +124,8 @@ export function useChatSessionConfigSync() {
     () =>
       [
         chatStore.sessionMap,
+        chatStore.messagesByChatId,
+        chatStore.lastActiveAtByChatId,
         chatStore.unreadByChatId,
         chatStore.pinnedChatIds,
         chatStore.hiddenRecentChatIds,

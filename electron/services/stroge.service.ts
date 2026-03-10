@@ -16,6 +16,11 @@ const store = new Store<StoreSchema>({
       width: 1200,
       height: 800,
     },
+    chatStorage: {
+      directory: '',
+      globalLimitMB: 256,
+      perChatLimitMB: 32,
+    },
   },
 })
 

@@ -82,6 +82,11 @@ export class WindowService {
       if (mainWin) mainWin.webContents.send('accept-apply-result', data)
     })
 
+    ipcMain.on('profile-image-updated', (_, data) => {
+      const mainWin = this.windowMap.get(WindowType.MAIN)
+      if (mainWin) mainWin.webContents.send('profile-image-updated', data)
+    })
+
     logger.info('Window IPC Init.')
   }
 

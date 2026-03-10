@@ -24,6 +24,26 @@ export interface PlatformCapabilities {
     get(key: string): Promise<string | null>
   }
 
+  chatStorage: {
+    getConfig(): Promise<{
+      directory: string
+      globalLimitMB: number
+      perChatLimitMB: number
+    }>
+    setConfig(config: {
+      directory: string
+      globalLimitMB: number
+      perChatLimitMB: number
+    }): Promise<{
+      directory: string
+      globalLimitMB: number
+      perChatLimitMB: number
+    }>
+    chooseDirectory(): Promise<string | null>
+    readState(userId: string): Promise<string | null>
+    writeState(payload: { userId: string; payload: string }): Promise<boolean>
+  }
+
   device: {
     vibrate(): void // 移动端震动，Web/桌面端可忽略
     getBattery(): Promise<number>

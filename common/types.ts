@@ -8,4 +8,9 @@ export interface StoreSchema {
     width: number
     height: number
   }
+  chatStorage: {
+    directory: string
+    globalLimitMB: number
+    perChatLimitMB: number
+  }
 }

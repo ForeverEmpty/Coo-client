@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { AxiosInstance, AxiosRequestConfig } from 'axios'
 import { requestObserver } from './requestObserver'
 
 // 扩展 axios 配置类型
@@ -8,10 +9,21 @@ declare module 'axios' {
   }
 }
 
+interface TypedAxiosInstance extends AxiosInstance {
+  request<T = unknown>(config: AxiosRequestConfig): Promise<T>
+  get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T>
+  delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T>
+  head<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T>
+  options<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T>
+  post<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T>
+  put<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T>
+  patch<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T>
+}
+
 const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 5000,
-})
+}) as TypedAxiosInstance
 
 request.interceptors.request.use(
   (config) => {

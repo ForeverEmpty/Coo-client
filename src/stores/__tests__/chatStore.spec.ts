@@ -161,8 +161,9 @@ describe('chatStore', () => {
     expect(store.isPinned('1001')).toBe(false)
   })
 
-  it('persists and hydrates recent state by user id', () => {
+  it('persists and hydrates recent state by user id', async () => {
     const store = useChatStore()
+    store.cacheMode = 'electron'
     store.ensureSession({ id: '1001', title: 'Alice', type: 1 })
     store.appendIncomingMessage('1001', {
       fromId: '1001',
@@ -173,11 +174,12 @@ describe('chatStore', () => {
     })
     store.pinChat('1001')
     store.incrementUnread('1001')
-    store.persistRecentState('u-1')
+    await store.persistRecentState('u-1')
 
     setActivePinia(createPinia())
     const restored = useChatStore()
-    expect(restored.hydrateRecentState('u-1')).toBe(true)
+    restored.cacheMode = 'electron'
+    expect(await restored.hydrateRecentState('u-1')).toBe(true)
     expect(restored.recentChats[0]?.chatId).toBe('1001')
     expect(restored.recentChats[0]?.title).toBe('Alice')
     expect(restored.recentChats[0]?.pinned).toBe(true)

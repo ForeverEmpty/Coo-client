@@ -1,4 +1,4 @@
-import FriendTab from '@/views/contacts/components/tabs/FriendTab.vue'
+﻿import FriendTab from '@/views/contacts/components/tabs/FriendTab.vue'
 import GroupTab from '@/views/contacts/components/tabs/GroupTab.vue'
 import NewFriendTab from '@/views/contacts/components/tabs/NewFriendTab.vue'
 import { UserPlus, Users, UsersRound } from 'lucide-vue-next'

@@ -32,6 +32,12 @@ const router = createRouter({
           meta: { layout: 'full' },
           component: () => import('@/views/settings/SettingsView.vue'),
         },
+        {
+          path: 'groups/:id',
+          name: 'GroupDetail',
+          meta: { layout: 'full' },
+          component: () => import('@/views/groups/GroupDetailView.vue'),
+        },
       ],
     },
     {
@@ -63,6 +69,11 @@ const router = createRouter({
       path: '/dialog',
       name: 'DialogHost',
       component: () => import('@/views/dialog/DialogHostView.vue'),
+    },
+    {
+      path: '/profile/image-editor',
+      name: 'ProfileImageEditor',
+      component: () => import('@/views/profile/ProfileImageEditorView.vue'),
     },
     {
       path: '/auth',

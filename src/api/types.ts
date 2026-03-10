@@ -72,6 +72,20 @@ export interface ChatMessage {
   fileSize?: number
   fileName?: string
   timestamp: number | string
+  replyTo?: {
+    messageId?: string
+    senderName?: string
+    content?: string
+  }
+}
+
+export interface ChatRecallMessage {
+  messageId: string
+  fromId: string
+  toId: string
+  chatType?: 1 | 2
+  operatorId?: string
+  timestamp: number | string
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -162,4 +176,142 @@ export interface RecentPrivateChatItemVO {
 export interface ChatSessionConfig {
   pinnedChatIds: string[]
   hiddenRecentChatIds: string[]
+}
+
+export interface MutualFriendListVO {
+  total: number
+  list: UserSimple[]
+}
+
+export type GroupPermission =
+  | 'GROUP_VIEW'
+  | 'GROUP_EDIT_INFO'
+  | 'GROUP_EDIT_NOTICE'
+  | 'GROUP_INVITE_MEMBER'
+  | 'GROUP_REVIEW_INVITE'
+  | 'GROUP_REVIEW_APPLY'
+  | 'GROUP_REMOVE_MEMBER'
+  | 'GROUP_ASSIGN_TITLE'
+  | 'GROUP_MANAGE_TITLE'
+  | 'GROUP_SET_SUPER_ADMIN'
+  | 'GROUP_TRANSFER_OWNER'
+  | 'GROUP_EDIT_MEMBER_NICKNAME'
+
+export interface GroupListItem {
+  id: string
+  name: string
+  avatar?: string
+  notice?: string
+  remark?: string
+  memberCount: number
+  myRole?: number
+  myTitleId?: string
+  myTitleName?: string
+  myNicknameInGroup?: string
+}
+
+export interface GroupInfo {
+  id: string
+  name: string
+  avatar?: string
+  notice?: string
+  remark?: string
+  ownerId: string
+  inviteAuditMode: number
+  defaultTitleId?: string
+  memberCount: number
+  myRole?: number
+  myTitleId?: string
+  myTitleName?: string
+  myNicknameInGroup?: string
+  myPermissions: GroupPermission[]
+}
+
+export interface GroupMember {
+  userId: string
+  username?: string
+  nickname?: string
+  avatar?: string
+  displayName: string
+  nicknameInGroup?: string
+  titleId?: string
+  titleName?: string
+  role: number
+  permissions: GroupPermission[]
+}
+
+export interface GroupTitle {
+  id: string
+  name: string
+  isDefault: boolean
+  sort: number
+  memberCount: number
+  permissions: GroupPermission[]
+}
+
+export interface GroupJoinRequest {
+  id: string
+  groupId: string
+  type: 'INVITE' | 'APPLY'
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELED'
+  reason?: string
+  auditBy?: string
+  createTime: string
+  fromUser?: UserSimple
+  targetUser?: UserSimple
+}
+
+export interface GroupSearchItem {
+  id: string
+  name: string
+  avatar?: string
+  notice?: string
+  memberCount: number
+  joined: boolean
+  pending: boolean
+}
+
+export interface GroupCreateParams {
+  name: string
+  avatar?: string
+  notice?: string
+  inviteAuditMode: number
+  initialMemberIds?: string[]
+}
+
+export interface GroupUpdateParams {
+  name?: string
+  avatar?: string
+  notice?: string
+  inviteAuditMode?: number
+}
+
+export interface GroupInviteParams {
+  targetUserIds: string[]
+  reason?: string
+}
+
+export interface GroupApplyParams {
+  reason?: string
+}
+
+export interface GroupJoinAuditParams {
+  approve: boolean
+  remark?: string
+}
+
+export interface GroupTransferOwnerParams {
+  targetUserId: string
+}
+
+export interface GroupTitleCreateParams {
+  name: string
+  sort?: number
+  permissions: GroupPermission[]
+}
+
+export interface GroupTitleUpdateParams {
+  name: string
+  sort?: number
+  permissions: GroupPermission[]
 }

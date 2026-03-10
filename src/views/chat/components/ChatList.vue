@@ -8,6 +8,7 @@ import { QuickContextMenu } from '@/components/ui/context-menu'
 import { createRecentChatContextMenu } from '@/config/menu'
 import { useSuggestionNavigator } from '@/composables/useSuggestionNavigator'
 import { cn } from '@/lib/utils'
+import { socialApi } from '@/api/social'
 import { useChatStore, type RecentChatItem } from '@/stores/chatStore'
 
 const MAX_CHAT_SUGGESTIONS = 8
@@ -15,6 +16,7 @@ const MAX_CHAT_SUGGESTIONS = 8
 const chatStore = useChatStore()
 const keyword = ref('')
 const suggestionVisible = ref(false)
+const refreshingChatMeta = new Set<string>()
 
 const normalizedKeyword = computed(() => keyword.value.trim().toLowerCase())
 
@@ -58,6 +60,33 @@ const formatLastTime = (timestamp: number) => {
 
 const previewText = (text: string) => text.replace(/\s+/g, ' ').trim()
 
+const refreshRecentChatMeta = async (item: RecentChatItem) => {
+  if (item.type !== 1) return
+  if (refreshingChatMeta.has(item.chatId)) return
+
+  refreshingChatMeta.add(item.chatId)
+  try {
+    const info = (await socialApi.getFriendInfo(item.chatId)).data
+    if (!info) return
+
+    const existing = chatStore.sessionMap[item.chatId]
+    const resolvedTitle = (info.nickname || '').trim() || existing?.title || item.title
+    const resolvedAvatar = info.avatar || existing?.avatar || item.avatar || ''
+
+    chatStore.ensureSession({
+      id: item.chatId,
+      title: resolvedTitle,
+      avatar: resolvedAvatar,
+      type: 1,
+      subTitle: existing?.subTitle || item.subTitle || '在线',
+    })
+  } catch {
+    // Keep current cached session info when refresh fails.
+  } finally {
+    refreshingChatMeta.delete(item.chatId)
+  }
+}
+
 const openChat = (item: RecentChatItem) => {
   chatStore.setActiveChat({
     id: item.chatId,
@@ -66,6 +95,7 @@ const openChat = (item: RecentChatItem) => {
     type: item.type,
     subTitle: item.subTitle,
   })
+  void refreshRecentChatMeta(item)
 }
 
 const selectSuggestion = (item: RecentChatItem) => {

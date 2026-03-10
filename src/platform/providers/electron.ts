@@ -24,6 +24,14 @@ export const ElectronProvider: PlatformCapabilities = {
     get: async (key) => localStorage.getItem(key),
   },
 
+  chatStorage: {
+    getConfig: () => window.electronAPI.chatStorage.getConfig(),
+    setConfig: (config) => window.electronAPI.chatStorage.setConfig(config),
+    chooseDirectory: () => window.electronAPI.chatStorage.chooseDirectory(),
+    readState: (userId) => window.electronAPI.chatStorage.readState(userId),
+    writeState: (payload) => window.electronAPI.chatStorage.writeState(payload),
+  },
+
   device: {
     vibrate: () => {}, // 电脑不会震动
     getBattery: async () => 0,

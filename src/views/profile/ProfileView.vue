@@ -34,21 +34,24 @@ import InfoItem from '@/views/profile/components/InfoItem.vue'
 import ProfileSection from '@/views/profile/components/ProfileSection.vue'
 import EditProfileDialog from '@/views/profile/components/EditProfileDialog.vue'
 import PrivacyDialog from '@/views/profile/components/PrivacyDialog.vue'
+import ProfileImageEditor from '@/views/profile/components/ProfileImageEditor.vue'
 
 import type { Friend, FriendApplySource, UserInfo, UserSimple } from '@/api/types'
 import { authApi } from '@/api/auth'
 import { socialApi } from '@/api/social'
-import { fileApi } from '@/api/file'
 import { calculateAge } from '@/utils/calculateAge'
 import { formatLocalDateTime } from '@/utils/dateTime'
+import type { ProfileImageTarget } from '@/config/profileImage'
 import { usePlatform } from '@/composables/usePlatform'
 import FriendApplyView from '../components/FriendApplyView.vue'
 import { useChatStore } from '@/stores/chatStore'
 import { useDialog } from '@/composables/useDialog'
+import { useUserStore } from '@/stores/userStore'
 
 const route = useRoute()
 const router = useRouter()
 const chatStore = useChatStore()
+const userStore = useUserStore()
 const { p, isElectron } = usePlatform()
 const { confirm } = useDialog()
 
@@ -56,9 +59,15 @@ const loading = ref(true)
 const userInfo = ref<UserInfo | null>(null)
 const showEditProfileDialog = ref(false)
 const showPrivacyDialog = ref(false)
+const showImageEditorDialog = ref(false)
+const imageEditorTarget = ref<ProfileImageTarget>('avatar')
 const webApplyOpen = ref(false)
 const confirmDialogOpen = ref(false)
 const selectedUser = ref<UserSimple | null>(null)
+const mutualFriends = ref<UserSimple[]>([])
+const mutualTotal = ref(0)
+const mutualLoading = ref(false)
+const mutualRequestId = ref(0)
 const deletingFriendId = ref<string | null>(null)
 const pendingDeleteFriend = ref<Friend | null>(null)
 const applySource = ref<FriendApplySource>(
@@ -105,7 +114,7 @@ const deleteFriend = async (friend: Friend) => {
     toast.success('已删除好友（单向删除）')
     closeDeleteDialog()
   } catch {
-    toast.error('删除失败，请稍后重试。')
+    toast.error('删除失败，请稍后重试')
   } finally {
     deletingFriendId.value = null
   }
@@ -138,74 +147,106 @@ const confirmDeleteFriend = async () => {
   await deleteFriend(friend)
 }
 
+const resetMutualFriends = () => {
+  mutualFriends.value = []
+  mutualTotal.value = 0
+  mutualLoading.value = false
+}
+
+const loadMutualFriends = async (targetId: string, targetInfo: UserInfo | null) => {
+  if (!targetId || !targetInfo || targetInfo.isMe || !targetInfo.publicMutualFriend) {
+    resetMutualFriends()
+    return
+  }
+
+  const requestId = ++mutualRequestId.value
+  mutualLoading.value = true
+
+  try {
+    const { data } = await socialApi.getMutualFriends(targetId, 6)
+    if (requestId !== mutualRequestId.value) return
+
+    mutualFriends.value = data?.list || []
+    mutualTotal.value = Number(data?.total ?? mutualFriends.value.length)
+  } catch {
+    if (requestId !== mutualRequestId.value) return
+    resetMutualFriends()
+  } finally {
+    if (requestId === mutualRequestId.value) {
+      mutualLoading.value = false
+    }
+  }
+}
+
 const loadData = async () => {
   loading.value = true
   try {
-    const id = route.params.id
-    const result = isSelf.value
+    const routeId = String(route.params.id || '')
+    const result = routeId === 'me'
       ? await authApi.getMe()
-      : await socialApi.getFriendInfo(id as string)
-    userInfo.value = result.data
+      : await socialApi.getFriendInfo(routeId)
+
+    const info = result.data
+    userInfo.value = info
+
+    const targetId = routeId === 'me' ? String(info?.id || '') : routeId
+    await loadMutualFriends(targetId, info || null)
   } finally {
     loading.value = false
   }
 }
 
-// 头像上传逻辑
-const onAvatarClick = () => {
-  if (!isSelf.value) return
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'image/*'
-  input.onchange = async (e: Event) => {
-    const file = (e.target as HTMLInputElement).files?.[0]
-    if (!file) return
-    const tid = toast.loading('上传中... 0%')
+const syncUserStoreProfile = (target: ProfileImageTarget, url: string) => {
+  const nextInfo = userStore.userInfo ? { ...userStore.userInfo } : { ...(userInfo.value || {}) }
 
-    try {
-      const { data: url } = await fileApi.upload(
-        file,
-        (progress) => {
-          toast.loading(`上传中... ${progress}%`, { id: tid })
-        },
-        { skipErrorHandler: true },
-      )
-      await authApi.updateAvatar(url)
-      if (userInfo.value) userInfo.value.avatar = url
-      toast.success('更新成功', { id: tid })
-    } catch {
-      toast.error('上传失败，请重试', { id: tid })
-    }
+  if (target === 'avatar') {
+    nextInfo.avatar = url
+  } else {
+    nextInfo.backgroundUrl = url
   }
-  input.click()
+
+  userStore.userInfo = nextInfo as UserInfo
+  localStorage.setItem('coo_user_info', JSON.stringify(nextInfo))
+}
+
+const applyImageUpdate = (payload: { target: ProfileImageTarget; url: string }) => {
+  if (!payload?.url) return
+
+  if (payload.target === 'avatar') {
+    if (userInfo.value) userInfo.value.avatar = payload.url
+  } else if (userInfo.value) {
+    userInfo.value.backgroundUrl = payload.url
+  }
+
+  syncUserStoreProfile(payload.target, payload.url)
+}
+
+const openImageEditor = (target: ProfileImageTarget) => {
+  if (!isSelf.value) return
+  imageEditorTarget.value = target
+
+  if (isElectron) {
+    p.send('open-window', {
+      type: 'IMAGE_EDITOR',
+      route: `/profile/image-editor?target=${target}`,
+    })
+    return
+  }
+
+  showImageEditorDialog.value = true
+}
+
+const onAvatarClick = () => {
+  openImageEditor('avatar')
 }
 
 const onBackgroundClick = () => {
-  if (!isSelf.value) return
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'image/*'
-  input.onchange = async (e: Event) => {
-    const file = (e.target as HTMLInputElement).files?.[0]
-    if (!file) return
-    const tid = toast.loading('正在更换背景... 0%')
+  openImageEditor('background')
+}
 
-    try {
-      const { data: url } = await fileApi.upload(
-        file,
-        (progress) => {
-          toast.loading(`正在更换背景... ${progress}%`, { id: tid })
-        },
-        { skipErrorHandler: true },
-      )
-      await authApi.updateBackground(url)
-      if (userInfo.value) userInfo.value.backgroundUrl = url
-      toast.success('背景更换成功', { id: tid })
-    } catch {
-      toast.error('背景更换失败，请重试', { id: tid })
-    }
-  }
-  input.click()
+const handleImageEditorSuccess = (payload: { target: ProfileImageTarget; url: string }) => {
+  applyImageUpdate(payload)
+  showImageEditorDialog.value = false
 }
 
 const handleFriendActionClick = () => {
@@ -238,8 +279,34 @@ const copyText = (text: string) => {
   toast.success('已复制')
 }
 
+const handleMutualFriendClick = (friend: UserSimple) => {
+  const id = String(friend?.id || '')
+  if (!id) return
+
+  if (isElectron) {
+    p.send('open-window', {
+      type: 'USER_DETAIL',
+      route: `/contacts/profile-compact/${id}?source=SEARCH`,
+    })
+    return
+  }
+
+  router.push(`/profile/${id}`)
+}
+
 watch(() => route.params.id, loadData)
-onMounted(loadData)
+onMounted(() => {
+  void loadData()
+  if (!isElectron) return
+
+  p.on(
+    'profile-image-updated',
+    (_event, payload: { target: ProfileImageTarget; url: string } | undefined) => {
+      if (!payload) return
+      applyImageUpdate(payload)
+    },
+  )
+})
 </script>
 
 <template>
@@ -337,16 +404,17 @@ onMounted(loadData)
                       variant="outline"
                       @click="showEditProfileDialog = true"
                       class="rounded-xl gap-2 h-10 px-6"
-                      ><Settings2 class="h-4 w-4" /> 编辑资料</Button
                     >
+                      <Settings2 class="h-4 w-4" /> 编辑资料
+                    </Button>
                     <Button variant="ghost" @click="showPrivacyDialog = true" class="rounded-xl">
                       隐私
                     </Button>
                   </template>
                   <template v-else>
-                    <Button class="rounded-xl gap-2 h-10 px-8"
-                      ><MessageSquare class="h-4 w-4" /> 发消息</Button
-                    >
+                    <Button class="rounded-xl gap-2 h-10 px-8">
+                      <MessageSquare class="h-4 w-4" /> 发消息
+                    </Button>
                     <Button
                       variant="secondary"
                       class="rounded-xl h-10 px-4"
@@ -417,21 +485,35 @@ onMounted(loadData)
 
           <!-- 共同好友模块 -->
           <ProfileSection v-if="showMutualFriends" title="共同好友" :icon="Users">
-            <div class="flex -space-x-3 overflow-hidden">
-              <Avatar
-                v-for="i in 5"
-                :key="i"
-                class="inline-block border-2 border-background w-10 h-10"
+            <div v-if="mutualLoading" class="text-xs text-muted-foreground">加载中...</div>
+            <div
+              v-else-if="mutualFriends.length > 0"
+              class="flex -space-x-3 overflow-hidden no-drag"
+            >
+              <button
+                v-for="friend in mutualFriends"
+                :key="friend.id"
+                type="button"
+                class="rounded-full border-2 border-background transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                :title="friend.nickname"
+                @click="handleMutualFriendClick(friend)"
               >
-                <AvatarImage :src="`https://api.dicebear.com/7.x/avataaars/svg?seed=${i}`" />
-              </Avatar>
+                <Avatar class="inline-block w-10 h-10">
+                  <AvatarImage :src="friend.avatar || ''" />
+                  <AvatarFallback>{{
+                    (friend.nickname || friend.username || 'U').charAt(0).toUpperCase()
+                  }}</AvatarFallback>
+                </Avatar>
+              </button>
               <div
+                v-if="mutualTotal > mutualFriends.length"
                 class="flex items-center justify-center w-10 h-10 rounded-full bg-muted text-[10px] border-2 border-background text-muted-foreground"
               >
-                +12
+                +{{ mutualTotal - mutualFriends.length }}
               </div>
             </div>
-            <p class="text-xs text-muted-foreground mt-4">你们有 12 个共同好友</p>
+            <p v-else class="text-xs text-muted-foreground">暂无共同好友</p>
+            <p class="text-xs text-muted-foreground mt-4">你们有 {{ mutualTotal }} 个共同好友</p>
           </ProfileSection>
         </div>
 
@@ -462,6 +544,16 @@ onMounted(loadData)
             :user="selectedUser"
             :source="applySource"
             @close="webApplyOpen = false"
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog v-model:open="showImageEditorDialog">
+        <DialogContent class="max-w-4xl p-0 overflow-hidden" :show-close-button="false">
+          <ProfileImageEditor
+            :target="imageEditorTarget"
+            @close="showImageEditorDialog = false"
+            @success="handleImageEditorSuccess"
           />
         </DialogContent>
       </Dialog>

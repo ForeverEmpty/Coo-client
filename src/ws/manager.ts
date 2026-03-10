@@ -228,6 +228,11 @@ class WebSocketManager {
       return
     }
 
+    if (type === MessageType.RECALL) {
+      this.emit('recall', model)
+      return
+    }
+
     if (type === MessageType.SYSTEM) {
       this.emit('system', model)
     }
