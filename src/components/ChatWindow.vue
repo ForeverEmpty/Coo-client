@@ -4,14 +4,31 @@ import { useRoute, useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import { ContentType } from '@/api/enum'
 import { chatApi } from '@/api/chat'
-import { fileApi } from '@/api/file'
 import { socialApi } from '@/api/social'
-import type { ChatHistoryMessage, ChatMessage, GroupInfo, GroupMember } from '@/api/types'
+import type { ChatMessage, FriendGroup, GroupInfo, GroupMember } from '@/api/types'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import ChatMainArea from './ChatMainArea.vue'
-import GroupSidebar from './GroupSidebar.vue'
+import ChatActionDrawer from '@/components/chat/ChatActionDrawer.vue'
+import GroupInfoSidebar from '@/components/chat/GroupInfoSidebar.vue'
 import EmptyState from './EmptyState.vue'
+import {
+  extractGroupId,
+  mapHistoryMessageToUi,
+  resolveRecallErrorText,
+} from '@/components/chat/chatWindowHelpers'
 import { useChatStore } from '@/stores/chatStore'
+import { useContactStore } from '@/stores/contactStore'
 import { useUserStore } from '@/stores/userStore'
+import { usePlatform } from '@/composables/usePlatform'
 import type {
   ComposerAttachment,
   ComposerPayload,
@@ -20,14 +37,16 @@ import type {
 } from '@/types/chatComposer'
 import { wsManager } from '@/ws/manager'
 import { randomID } from '@/utils/randomID'
-import { onGroupUpdated } from '@/utils/groupSync'
+import { emitGroupUpdated, onGroupUpdated } from '@/utils/groupSync'
 
 const props = defineProps<{ chatId: string | null }>()
 
 const chatStore = useChatStore()
+const contactStore = useContactStore()
 const userStore = useUserStore()
 const route = useRoute()
 const router = useRouter()
+const { p, isElectron } = usePlatform()
 
 const groupInfo = ref<GroupInfo | null>(null)
 const groupMembers = ref<GroupMember[]>([])
@@ -62,7 +81,7 @@ const subTitle = computed(() => {
 const myAvatar = computed(() => userStore.userInfo?.avatar || '')
 const peerAvatar = computed(() => sessionMeta.value?.avatar || '')
 const peerName = computed(() => sessionMeta.value?.title || '')
-const currentUserGroupRole = computed(() => groupInfo.value?.myRole)
+const currentUserGroupPermissions = computed(() => groupInfo.value?.myPermissions || [])
 const groupMemberMap = computed<Record<string, { name: string; avatar?: string; role?: number }>>(() => {
   const map: Record<string, { name: string; avatar?: string; role?: number }> = {}
   groupMembers.value.forEach((member) => {
@@ -80,48 +99,18 @@ const historyHasMoreByChatId = ref<Record<string, boolean>>({})
 const historyLoadingByChatId = ref<Record<string, boolean>>({})
 const historyInitializedByChatId = ref<Record<string, boolean>>({})
 const sending = ref(false)
+const sidebarOpen = ref(false)
+const sidebarLoading = ref(false)
+const groupActionLoading = ref(false)
+const privatePeerMeta = ref<{ id: string; title: string; avatar?: string } | null>(null)
+const privateRelationStatus = ref<1 | 2 | 3 | null>(null)
+const groupLeaveDialogOpen = ref(false)
+const groupTransferDialogOpen = ref(false)
+const groupDisbandDialogOpen = ref(false)
+const transferTargetUserId = ref('')
 const pendingRetryFileByLocalId = new Map<string, ComposerAttachment>()
 const RECALL_WINDOW_MS = 2 * 60 * 1000
-type GroupSidebarTab = 'members' | 'images' | 'files' | 'manage'
-const routeSidebarTab = ref<GroupSidebarTab | undefined>()
 let offGroupUpdated: (() => void) | null = null
-
-const getErrorMessage = (error: unknown) => {
-  if (error instanceof Error) {
-    return error.message || ''
-  }
-  if (typeof error === 'string') {
-    return error
-  }
-  return ''
-}
-
-const resolveRecallErrorText = (error: unknown, groupChat: boolean) => {
-  const message = getErrorMessage(error).trim()
-  if (!message) {
-    return '撤回失败，请稍后重试'
-  }
-
-  if (message.includes('No permission to recall this message')) {
-    return groupChat ? '仅群主或超管可撤回他人消息' : '只能撤回自己发送的消息'
-  }
-  if (message.includes('Recall time window exceeded')) {
-    return groupChat ? '发送超过 2 分钟的消息不可撤回（群主/超管可撤回他人消息）' : '已超过 2 分钟撤回时限'
-  }
-  if (message.includes('Message not found')) {
-    return '消息不存在，可能已被删除'
-  }
-  if (message.includes('Only sender can recall this message')) {
-    return '只能撤回自己发送的消息'
-  }
-  if (message.includes('Only group chat messages can be recalled')) {
-    return '仅支持撤回群聊消息'
-  }
-  if (message.includes('Only private chat messages can be recalled')) {
-    return '仅支持撤回私聊消息'
-  }
-  return message
-}
 
 const historyLoading = computed(() => {
   if (!props.chatId) return false
@@ -133,39 +122,38 @@ const historyHasMore = computed(() => {
   return !!historyHasMoreByChatId.value[props.chatId]
 })
 
-const extractGroupId = (chatId: string) => (chatId.startsWith('group_') ? chatId.slice(6) : chatId)
-const resolveGroupSidebarTab = (raw: unknown): GroupSidebarTab | undefined => {
-  const value = String(raw || '').trim().toLowerCase()
-  if (value === 'members' || value === 'images' || value === 'files' || value === 'manage') {
-    return value
+const isPrivateChat = computed(() => !!props.chatId && !isGroup.value)
+const isGroupOwner = computed(() => {
+  const currentUserId = String(userStore.userInfo?.id || '')
+  if (groupInfo.value?.ownerId && currentUserId) {
+    return String(groupInfo.value.ownerId) === currentUserId
   }
-  return undefined
-}
+  return Number(groupInfo.value?.myRole || 0) === 1
+})
+const isPinned = computed(() => (props.chatId ? chatStore.isPinned(props.chatId) : false))
+const isMuted = computed(() => (props.chatId ? chatStore.isMuted(props.chatId) : false))
+const isBlocked = computed(() => privateRelationStatus.value === 2)
+const privatePeerUserId = computed(() => (isPrivateChat.value && props.chatId ? props.chatId : ''))
 
-const consumeGroupSidebarIntent = () => {
-  if (!props.chatId || !isGroup.value) {
-    routeSidebarTab.value = undefined
-    return
-  }
-  const tab = resolveGroupSidebarTab(route.query.sidebarTab)
-  if (!tab) {
-    routeSidebarTab.value = undefined
-    return
-  }
+const privatePeerTitle = computed(() => {
+  if (!isPrivateChat.value) return ''
+  return (
+    privatePeerMeta.value?.title ||
+    sessionMeta.value?.title ||
+    props.chatId ||
+    ''
+  )
+})
 
-  const targetGroupId = String(route.query.groupId || '').trim()
-  const currentGroupId = extractGroupId(props.chatId)
-  if (targetGroupId && targetGroupId !== currentGroupId) {
-    return
-  }
+const privatePeerAvatar = computed(() => {
+  if (!isPrivateChat.value) return ''
+  return privatePeerMeta.value?.avatar || sessionMeta.value?.avatar || ''
+})
 
-  routeSidebarTab.value = tab
-
-  const nextQuery = { ...route.query }
-  delete nextQuery.groupId
-  delete nextQuery.sidebarTab
-  void router.replace({ query: nextQuery })
-}
+const groupTransferCandidates = computed(() => {
+  const currentUser = String(userStore.userInfo?.id || '')
+  return groupMembers.value.filter((member) => String(member.userId) !== currentUser)
+})
 
 const initLocalHistoryCursor = (chatId: string) => {
   if (!chatStore.isLocalMessageCacheEnabled) {
@@ -184,6 +172,281 @@ const initLocalHistoryCursor = (chatId: string) => {
   historyHasMoreByChatId.value[chatId] = true
   historyInitializedByChatId.value[chatId] = true
   return true
+}
+
+const resolvePrivateFriendStatus = (groups: FriendGroup[], friendId: string) => {
+  for (const group of groups || []) {
+    const friend = (group.children || []).find((item) => String(item.id) === friendId)
+    if (friend) {
+      return (friend.status as 1 | 2 | 3 | undefined) || null
+    }
+  }
+  return null
+}
+
+const loadPrivateSidebarData = async (chatId: string) => {
+  if (!chatId || isGroup.value) return
+
+  sidebarLoading.value = true
+  try {
+    const [infoRes, listRes] = await Promise.all([
+      socialApi.getFriendInfo(chatId),
+      socialApi.getFriendList(),
+    ])
+
+    const info = infoRes.data
+    const groups = listRes.data || []
+    privateRelationStatus.value = resolvePrivateFriendStatus(groups, chatId)
+
+    const nextTitle =
+      info?.nickname ||
+      sessionMeta.value?.title ||
+      chatId
+    const nextAvatar = info?.avatar || sessionMeta.value?.avatar || ''
+
+    privatePeerMeta.value = {
+      id: chatId,
+      title: nextTitle,
+      avatar: nextAvatar,
+    }
+
+    chatStore.ensureSession({
+      id: chatId,
+      title: nextTitle,
+      avatar: nextAvatar,
+      type: 1,
+      subTitle: sessionMeta.value?.subTitle || '在线',
+    })
+  } catch {
+    privatePeerMeta.value = {
+      id: chatId,
+      title: sessionMeta.value?.title || chatId,
+      avatar: sessionMeta.value?.avatar || '',
+    }
+    privateRelationStatus.value = privateRelationStatus.value ?? 1
+  } finally {
+    sidebarLoading.value = false
+  }
+}
+
+const openSidebar = () => {
+  sidebarOpen.value = true
+  if (props.chatId && !isGroup.value) {
+    void loadPrivateSidebarData(props.chatId)
+    return
+  }
+  if (props.chatId && isGroup.value) {
+    void loadGroupContext(props.chatId)
+  }
+}
+
+const closeSidebar = () => {
+  sidebarOpen.value = false
+}
+
+const handleGroupMemberClick = (userId: string) => {
+  if (!userId) return
+  closeSidebar()
+  router.push(`/profile/${userId}`)
+}
+
+const handleOpenCurrentChatDetail = () => {
+  const chatId = props.chatId
+  if (!chatId) return
+
+  if (isGroup.value) {
+    const groupId = extractGroupId(chatId)
+    closeSidebar()
+    void router.push(`/groups/${groupId}`)
+    return
+  }
+
+  closeSidebar()
+  void router.push(`/profile/${chatId}`)
+}
+
+const handleOpenHistoryEntry = () => {
+  if (!props.chatId) return
+  toast.info('聊天记录入口已预留，可在主消息区滚动查看历史')
+}
+
+const handleTogglePin = () => {
+  if (!props.chatId) return
+  chatStore.togglePinChat(props.chatId)
+  toast.success(chatStore.isPinned(props.chatId) ? '已置顶会话' : '已取消置顶')
+}
+
+const handleToggleMute = (value: boolean) => {
+  if (!props.chatId) return
+  if (value) {
+    chatStore.muteChat(props.chatId)
+    toast.success('已开启消息免打扰')
+    return
+  }
+  chatStore.unmuteChat(props.chatId)
+  toast.success('已关闭消息免打扰')
+}
+
+const handleToggleBlock = async () => {
+  if (!props.chatId || isGroup.value) return
+  const nextStatus: 1 | 2 = isBlocked.value ? 1 : 2
+
+  try {
+    await socialApi.updateFriendRelation({
+      friendId: props.chatId,
+      status: nextStatus,
+    })
+    privateRelationStatus.value = nextStatus
+    toast.success(nextStatus === 2 ? '已拉黑该好友' : '已取消拉黑')
+  } catch {
+    // handled by request manager
+  }
+}
+
+const handleClearMessages = () => {
+  if (!props.chatId) return
+  const localIds = chatStore.getMessages(props.chatId).map((item) => item.localId)
+  if (localIds.length === 0) {
+    toast.info('当前会话暂无可删除记录')
+    return
+  }
+  chatStore.removeLocalMessages(props.chatId, localIds)
+  chatStore.clearUnread(props.chatId)
+  toast.success('已清空本端聊天记录')
+}
+
+const handleDeleteFriend = async () => {
+  const chatId = props.chatId
+  if (!chatId || isGroup.value) return
+  try {
+    await socialApi.deleteFriend(chatId)
+    chatStore.removeFromRecent(chatId)
+    chatStore.setActiveChat(null)
+    closeSidebar()
+    toast.success('已删除好友')
+  } catch {
+    // handled by request manager
+  }
+}
+
+const getCurrentGroupContext = () => {
+  const chatId = props.chatId
+  if (!chatId || !isGroup.value) return null
+  return {
+    chatId,
+    groupId: extractGroupId(chatId),
+  }
+}
+
+const refreshGroupContextAfterMutation = async (groupId: string) => {
+  await contactStore.fetchGroupChats(true)
+  emitGroupUpdated(groupId)
+  if (props.chatId && extractGroupId(props.chatId) === groupId) {
+    await loadGroupContext(props.chatId)
+  }
+}
+
+const handleOpenGroupFiles = () => {
+  const context = getCurrentGroupContext()
+  if (!context) return
+
+  const routePath = `/groups/${context.groupId}/files`
+  closeSidebar()
+  if (isElectron) {
+    p.send('open-window', {
+      type: 'GROUP_FILES',
+      route: routePath,
+    })
+    return
+  }
+  void router.push(routePath)
+}
+
+const handleOpenGroupNotice = () => {
+  const context = getCurrentGroupContext()
+  if (!context) return
+  closeSidebar()
+  void router.push({
+    path: `/groups/${context.groupId}`,
+    query: { focus: 'overview' },
+  })
+}
+
+const openGroupLeaveDialog = () => {
+  const context = getCurrentGroupContext()
+  if (!context) return
+  groupLeaveDialogOpen.value = true
+}
+
+const confirmLeaveGroup = async () => {
+  const context = getCurrentGroupContext()
+  if (!context) return
+
+  groupActionLoading.value = true
+  try {
+    await socialApi.leaveGroup(context.groupId)
+    chatStore.removeFromRecent(context.chatId)
+    chatStore.setActiveChat(null)
+    groupLeaveDialogOpen.value = false
+    closeSidebar()
+    await contactStore.fetchGroupChats(true)
+    emitGroupUpdated(context.groupId)
+    toast.success('已退出群聊')
+  } finally {
+    groupActionLoading.value = false
+  }
+}
+
+const openGroupTransferDialog = () => {
+  const context = getCurrentGroupContext()
+  if (!context) return
+  transferTargetUserId.value = ''
+  groupTransferDialogOpen.value = true
+}
+
+const confirmTransferGroup = async () => {
+  const context = getCurrentGroupContext()
+  if (!context) return
+  if (!transferTargetUserId.value) {
+    toast.error('请选择转让目标成员')
+    return
+  }
+
+  groupActionLoading.value = true
+  try {
+    await socialApi.transferGroupOwner(context.groupId, transferTargetUserId.value)
+    groupTransferDialogOpen.value = false
+    closeSidebar()
+    await refreshGroupContextAfterMutation(context.groupId)
+    toast.success('群主已转让')
+  } finally {
+    groupActionLoading.value = false
+  }
+}
+
+const openGroupDisbandDialog = () => {
+  const context = getCurrentGroupContext()
+  if (!context) return
+  groupDisbandDialogOpen.value = true
+}
+
+const confirmDisbandGroup = async () => {
+  const context = getCurrentGroupContext()
+  if (!context) return
+
+  groupActionLoading.value = true
+  try {
+    await socialApi.deleteGroup(context.groupId)
+    chatStore.removeFromRecent(context.chatId)
+    chatStore.setActiveChat(null)
+    groupDisbandDialogOpen.value = false
+    closeSidebar()
+    await contactStore.fetchGroupChats(true)
+    emitGroupUpdated(context.groupId)
+    toast.success('群已解散')
+  } finally {
+    groupActionLoading.value = false
+  }
 }
 
 const sendRealtimeMessage = async (
@@ -222,17 +485,44 @@ const uploadAndSendAttachment = async (
   replyTo?: ChatMessage['replyTo'],
 ) => {
   let sequence = ''
+  let patched = false
   const contentType = attachment.type === 'image' ? ContentType.IMAGE : ContentType.FILE
   const fallbackContent = attachment.type === 'image' ? '[图片]' : attachment.file.name
 
   try {
-    const uploaded = await fileApi.upload(attachment.file)
-    const url = uploaded.data
+    sequence = randomID()
+    const uploadedUrl = attachment.resolvedUrl
+      ? attachment.resolvedUrl
+      : await (async () => {
+          if (chatType === 2 && attachment.type === 'file') {
+            const capacityMb = groupInfo.value?.fileCapacityMb || 1024
+            const usedBytes = groupInfo.value?.usedStorageBytes || 0
+            const thresholdMb = groupInfo.value?.oversizeThresholdMb || 100
+            const remaining = capacityMb * 1024 * 1024 - usedBytes
+            if (attachment.file.size > remaining && attachment.file.size <= thresholdMb * 1024 * 1024) {
+              throw new Error('group storage full')
+            }
+            const response = await socialApi.uploadGroupFile(
+              targetId,
+              attachment.file,
+              { source: 'CHAT_MESSAGE', sourceMessageId: sequence },
+              undefined,
+            )
+            if (groupInfo.value && !response.data?.temp) {
+              groupInfo.value.usedStorageBytes =
+                Number(groupInfo.value.usedStorageBytes || 0) + attachment.file.size
+            }
+            return response.data?.url || ''
+          }
+          const response = await chatApi.uploadAttachment(attachment.file)
+          return response.data || ''
+        })()
+
+    const url = uploadedUrl
     if (!url) {
       throw new Error('empty upload url')
     }
 
-    sequence = randomID()
     chatStore.patchMessage(props.chatId!, localId, {
       sequence,
       url,
@@ -241,6 +531,7 @@ const uploadAndSendAttachment = async (
       content: fallbackContent,
       status: 'sending',
     })
+    patched = true
 
     await sendRealtimeMessage(
       targetId,
@@ -259,7 +550,7 @@ const uploadAndSendAttachment = async (
     pendingRetryFileByLocalId.delete(localId)
     return true
   } catch {
-    if (sequence) {
+    if (patched && sequence) {
       chatStore.markMessageFailedBySequence(sequence)
     } else if (props.chatId) {
       chatStore.markMessageFailedByLocalId(props.chatId, localId)
@@ -449,28 +740,6 @@ const handleRetry = (localId: string) => {
   })
 }
 
-const mapHistoryMessage = (item: ChatHistoryMessage, currentUserIdValue: string) => {
-  const isOutgoing = item.fromId === currentUserIdValue
-  const isRecalled = item.status === 1
-
-  return {
-    localId: item.id || randomID(),
-    sequence: item.id || undefined,
-    fromId: item.fromId,
-    toId: item.toId,
-    chatType: item.chatType,
-    contentType: item.contentType,
-    content: isRecalled ? '[已撤回]' : item.content || '',
-    url: item.url || '',
-    fileName: item.fileName || '',
-    fileSize: item.fileSize,
-    timestamp: Number(item.timestamp) || Date.now(),
-    direction: isOutgoing ? ('out' as const) : ('in' as const),
-    status: isRecalled ? ('recalled' as const) : ('sent' as const),
-    replyTo: item.replyTo,
-  }
-}
-
 const handleDeleteLocal = (localIds: string[]) => {
   const chatId = props.chatId
   if (!chatId || localIds.length === 0) return
@@ -615,7 +884,7 @@ const loadPrivateHistory = async (chatId: string) => {
     const res = await chatApi.getPrivateHistory({ peerId: chatId, cursor, limit: 20 })
     const payload = res.data
     const list = [...(payload?.list || [])].reverse()
-    const mapped = list.map((item) => mapHistoryMessage(item, current))
+    const mapped = list.map((item) => mapHistoryMessageToUi(item, current))
 
     chatStore.prependHistoryMessages(chatId, mapped)
     historyHasMoreByChatId.value[chatId] = !!payload?.hasMore
@@ -640,7 +909,7 @@ const loadGroupHistory = async (chatId: string) => {
     const res = await chatApi.getGroupHistory({ groupId: extractGroupId(chatId), cursor, limit: 20 })
     const payload = res.data
     const list = [...(payload?.list || [])].reverse()
-    const mapped = list.map((item) => mapHistoryMessage(item, current))
+    const mapped = list.map((item) => mapHistoryMessageToUi(item, current))
 
     chatStore.prependHistoryMessages(chatId, mapped)
     historyHasMoreByChatId.value[chatId] = !!payload?.hasMore
@@ -696,6 +965,14 @@ const handleLoadMoreHistory = () => {
 watch(
   () => props.chatId,
   (newId) => {
+    closeSidebar()
+    privatePeerMeta.value = null
+    privateRelationStatus.value = null
+    groupLeaveDialogOpen.value = false
+    groupTransferDialogOpen.value = false
+    groupDisbandDialogOpen.value = false
+    transferTargetUserId.value = ''
+
     if (!newId) return
 
     if (!isGroup.value) {
@@ -720,7 +997,13 @@ watch(
 watch(
   () => [props.chatId, route.query.groupId, route.query.sidebarTab] as const,
   () => {
-    consumeGroupSidebarIntent()
+    if (!props.chatId || !isGroup.value) return
+    if (!route.query.sidebarTab) return
+
+    const targetGroupId = String(route.query.groupId || '').trim()
+    const currentGroupId = extractGroupId(props.chatId)
+    if (targetGroupId && targetGroupId !== currentGroupId) return
+    sidebarOpen.value = true
   },
   { immediate: true },
 )
@@ -757,34 +1040,118 @@ onBeforeUnmount(() => {
           :history-has-more="historyHasMore"
           :sending="sending"
           :group-member-map="groupMemberMap"
-          :current-user-group-role="currentUserGroupRole"
+          :current-user-group-permissions="currentUserGroupPermissions"
           @send="handleSend"
           @retry="handleRetry"
           @recall="handleRecall"
           @forward="handleForward"
           @delete-local="handleDeleteLocal"
           @load-more-history="handleLoadMoreHistory"
+          @open-sidebar="openSidebar"
+          @open-detail="handleOpenCurrentChatDetail"
         />
-        <GroupSidebar
+
+        <GroupInfoSidebar
           v-if="isGroup"
-          :group-id="chatId"
-          :initial-tab="routeSidebarTab"
           :notice="groupInfo?.notice"
           :member-count="groupInfo?.memberCount"
-          :my-nickname-in-group="groupInfo?.myNicknameInGroup"
-          :my-title-name="groupInfo?.myTitleName"
-          :can-manage="(groupInfo?.myPermissions || []).includes('GROUP_EDIT_INFO')"
-          :members="groupMembers.map((member) => ({
-            id: member.userId,
-            name: member.nicknameInGroup || member.displayName || member.nickname || member.userId,
-            avatar: member.avatar,
-            role: member.role,
-          }))"
+          :members="groupMembers"
+          @member-click="handleGroupMemberClick"
+        />
+
+        <ChatActionDrawer
+          :open="sidebarOpen"
+          :is-group="isGroup"
+          :loading="sidebarLoading || groupActionLoading"
+          :title="privatePeerTitle"
+          :avatar="privatePeerAvatar"
+          :user-id="privatePeerUserId"
+          :pinned="isPinned"
+          :blocked="isBlocked"
+          :muted="isMuted"
+          :group-info="groupInfo"
+          :group-members="groupMembers"
+          @close="closeSidebar"
+          @open-history="handleOpenHistoryEntry"
+          @toggle-pin="handleTogglePin"
+          @toggle-block="handleToggleBlock"
+          @toggle-mute="handleToggleMute"
+          @clear-messages="handleClearMessages"
+          @delete-friend="handleDeleteFriend"
+          @open-target-detail="handleOpenCurrentChatDetail"
+          @member-click="handleGroupMemberClick"
+          @open-group-files="handleOpenGroupFiles"
+          @open-group-notice="handleOpenGroupNotice"
+          @leave-group="openGroupLeaveDialog"
+          @transfer-group="openGroupTransferDialog"
+          @disband-group="openGroupDisbandDialog"
         />
       </div>
 
       <EmptyState v-else key="empty" />
     </Transition>
+
+    <Dialog v-model:open="groupLeaveDialogOpen">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>退出群聊</DialogTitle>
+          <DialogDescription>退出后将无法继续接收该群消息。</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" @click="groupLeaveDialogOpen = false">取消</Button>
+          <Button variant="destructive" :disabled="groupActionLoading" @click="confirmLeaveGroup">
+            {{ groupActionLoading ? '处理中...' : '退出群聊' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="groupTransferDialogOpen">
+      <DialogContent class="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>转让群主</DialogTitle>
+          <DialogDescription>请选择一名成员接任群主。</DialogDescription>
+        </DialogHeader>
+        <Select v-model:model-value="transferTargetUserId">
+          <SelectTrigger>
+            <SelectValue placeholder="选择成员" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="member in groupTransferCandidates"
+              :key="member.userId"
+              :value="member.userId"
+            >
+              {{ member.nicknameInGroup || member.displayName || member.nickname || member.userId }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <DialogFooter>
+          <Button variant="outline" @click="groupTransferDialogOpen = false">取消</Button>
+          <Button
+            :disabled="groupActionLoading || !transferTargetUserId"
+            @click="confirmTransferGroup"
+          >
+            {{ groupActionLoading ? '处理中...' : '确认转让' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="groupDisbandDialogOpen">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>解散群聊</DialogTitle>
+          <DialogDescription>解散后群将不可恢复，请谨慎操作。</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" @click="groupDisbandDialogOpen = false">取消</Button>
+          <Button variant="destructive" :disabled="groupActionLoading" @click="confirmDisbandGroup">
+            {{ groupActionLoading ? '处理中...' : '解散群聊' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 

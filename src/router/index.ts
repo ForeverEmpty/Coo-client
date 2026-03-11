@@ -76,6 +76,11 @@ const router = createRouter({
       component: () => import('@/views/profile/ProfileImageEditorView.vue'),
     },
     {
+      path: '/groups/:id/files',
+      name: 'GroupFiles',
+      component: () => import('@/views/groups/GroupFilesView.vue'),
+    },
+    {
       path: '/auth',
       component: () => import('@/layouts/AuthLayout.vue'),
       children: [

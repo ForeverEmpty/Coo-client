@@ -12,14 +12,24 @@ export const chatApi = {
     request.get<Result<RecentPrivateChatItemVO[]>>('chat/history/recent/private', { params }),
 
   recallPrivateMessage: (messageId: string) =>
-    request.post<Result<string>>('chat/history/private/recall', { messageId }),
+    request.post<Result<string>>('chat/history/private/recall', { messageId }, { skipErrorHandler: true }),
 
   recallGroupMessage: (messageId: string) =>
-    request.post<Result<string>>('chat/history/group/recall', { messageId }),
+    request.post<Result<string>>('chat/history/group/recall', { messageId }, { skipErrorHandler: true }),
 
   getGroupSharedImages: (params: { groupId: string; cursor?: string; limit?: number }) =>
     request.get<Result<ChatHistoryCursor>>('chat/history/group/shared/images', { params }),
 
   getGroupSharedFiles: (params: { groupId: string; cursor?: string; limit?: number }) =>
     request.get<Result<ChatHistoryCursor>>('chat/history/group/shared/files', { params }),
+
+  uploadAttachment: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request.post<Result<string>>('chat/attachment/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+  },
 }

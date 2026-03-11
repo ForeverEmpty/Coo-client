@@ -8,7 +8,9 @@ export interface GroupChatMeta {
   id: string
   name: string
   rawName: string
+  ownerId?: string
   avatar?: string
+  coverUrl?: string
   subTitle?: string
   memberCount?: number
   notice?: string
@@ -22,7 +24,9 @@ const mapGroupToMeta = (group: GroupListItem): GroupChatMeta => ({
   id: `group_${group.id}`,
   name: group.remark || group.name,
   rawName: group.name,
+  ownerId: group.ownerId,
   avatar: group.avatar || '',
+  coverUrl: group.coverUrl || '',
   subTitle: '群聊',
   memberCount: group.memberCount,
   notice: group.notice,

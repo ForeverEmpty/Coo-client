@@ -1,3 +1,4 @@
+import type { AxiosProgressEvent } from 'axios'
 import request from '@/utils/request'
 import type {
   ApplyParams,
@@ -16,6 +17,10 @@ import type {
   GroupJoinAuditParams,
   GroupJoinRequest,
   GroupListItem,
+  GroupFileConfig,
+  GroupFileFolder,
+  GroupFileItem,
+  GroupFileUploadResult,
   GroupMember,
   GroupSearchItem,
   GroupTitle,
@@ -97,9 +102,6 @@ export const socialApi = {
   updateGroupMemberTitle: (groupId: string, userId: string, titleId: string) =>
     request.put<Result<string>>(`social/group/${groupId}/member/${userId}/title`, { titleId }),
 
-  updateGroupMemberRole: (groupId: string, userId: string, role: number) =>
-    request.put<Result<string>>(`social/group/${groupId}/member/${userId}/role`, { role }),
-
   removeGroupMember: (groupId: string, userId: string) =>
     request.delete<Result<string>>(`social/group/${groupId}/member/${userId}`),
 
@@ -146,4 +148,63 @@ export const socialApi = {
     request.post<Result<string>>(`social/group/${groupId}/transfer-owner`, { targetUserId }),
 
   deleteGroup: (groupId: string) => request.delete<Result<string>>(`social/group/${groupId}`),
+
+  getGroupFileConfig: (groupId: string) =>
+    request.get<Result<GroupFileConfig>>(`social/group/${groupId}/files/config`),
+
+  updateGroupFileConfig: (
+    groupId: string,
+    data: { fileCapacityMb?: number; oversizeThresholdMb?: number; tempExpireDays?: number },
+  ) => request.put<Result<string>>(`social/group/${groupId}/files/config`, data),
+
+  listGroupFolders: (groupId: string, parentId?: string) =>
+    request.get<Result<GroupFileFolder[]>>(`social/group/${groupId}/files/folders`, {
+      params: { parentId },
+    }),
+
+  createGroupFolder: (groupId: string, data: { parentId?: string; name: string }) =>
+    request.post<Result<GroupFileFolder>>(`social/group/${groupId}/files/folders`, data),
+
+  renameGroupFolder: (groupId: string, folderId: string, name: string) =>
+    request.put<Result<string>>(`social/group/${groupId}/files/folders/${folderId}/rename`, { name }),
+
+  moveGroupFolder: (groupId: string, folderId: string, targetFolderId?: string) =>
+    request.put<Result<string>>(`social/group/${groupId}/files/folders/${folderId}/move`, { targetFolderId }),
+
+  deleteGroupFolder: (groupId: string, folderId: string) =>
+    request.delete<Result<string>>(`social/group/${groupId}/files/folders/${folderId}`),
+
+  listGroupFiles: (groupId: string, params?: { folderId?: string; pageNum?: number; pageSize?: number }) =>
+    request.get<Result<{ list: GroupFileItem[]; total: number; pageNum: number; pageSize: number; hasMore: boolean }>>(
+      `social/group/${groupId}/files`,
+      { params },
+    ),
+
+  uploadGroupFile: (
+    groupId: string,
+    file: File,
+    payload?: { folderId?: string; source?: string; sourceMessageId?: string },
+    onProgress?: (progress: number) => void,
+  ) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (payload?.folderId) formData.append('folderId', payload.folderId)
+    if (payload?.source) formData.append('source', payload.source)
+    if (payload?.sourceMessageId) formData.append('sourceMessageId', payload.sourceMessageId)
+    return request.post<Result<GroupFileUploadResult>>(`social/group/${groupId}/files/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (event: AxiosProgressEvent) => {
+        if (event.total) onProgress?.(Math.round((event.loaded * 100) / event.total))
+      },
+    })
+  },
+
+  renameGroupFile: (groupId: string, fileId: string, fileName: string) =>
+    request.put<Result<string>>(`social/group/${groupId}/files/${fileId}/rename`, { fileName }),
+
+  moveGroupFile: (groupId: string, fileId: string, targetFolderId?: string) =>
+    request.put<Result<string>>(`social/group/${groupId}/files/${fileId}/move`, { targetFolderId }),
+
+  deleteGroupFile: (groupId: string, fileId: string) =>
+    request.delete<Result<string>>(`social/group/${groupId}/files/${fileId}`),
 }

@@ -63,6 +63,7 @@ export interface RecentChatItem {
 export interface ChatSessionConfigPayload {
   pinnedChatIds: string[]
   hiddenRecentChatIds: string[]
+  mutedChatIds: string[]
 }
 
 interface RecentChatSnapshot {
@@ -77,6 +78,7 @@ interface PersistedChatState {
   unreadByChatId: Record<string, number>
   pinnedChatIds: Record<string, boolean>
   hiddenRecentChatIds: Record<string, boolean>
+  mutedChatIds?: Record<string, boolean>
   recentSnapshotByChatId: Record<string, RecentChatSnapshot>
   cachedMessagesByChatId?: Record<string, ChatUiMessage[]>
   lastActiveAtByChatId?: Record<string, number>
@@ -470,6 +472,7 @@ export const useChatStore = defineStore('chat', () => {
   const sequenceIndex = ref<Record<string, SequencePointer>>({})
   const pinnedChatIds = ref<Record<string, boolean>>({})
   const hiddenRecentChatIds = ref<Record<string, boolean>>({})
+  const mutedChatIds = ref<Record<string, boolean>>({})
   const recentSnapshotByChatId = ref<Record<string, RecentChatSnapshot>>({})
   const lastActiveAtByChatId = ref<Record<string, number>>({})
   const messageBytesByChatId = ref<Record<string, number>>({})
@@ -798,8 +801,7 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     const list = messagesByChatId.value[chatId] || []
-    list.push(message)
-    messagesByChatId.value[chatId] = list
+    messagesByChatId.value[chatId] = [...list, message]
     upsertRecentSnapshot(chatId, message)
     touchChatActivity(chatId, message.timestamp)
     recalcChatBytes(chatId)
@@ -839,8 +841,7 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     const list = messagesByChatId.value[chatId] || []
-    list.push(message)
-    messagesByChatId.value[chatId] = list
+    messagesByChatId.value[chatId] = [...list, message]
     upsertRecentSnapshot(chatId, message)
     touchChatActivity(chatId, message.timestamp)
     recalcChatBytes(chatId)
@@ -1055,9 +1056,28 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  const isMuted = (chatId: string) => !!mutedChatIds.value[chatId]
+
+  const muteChat = (chatId: string) => {
+    mutedChatIds.value[chatId] = true
+  }
+
+  const unmuteChat = (chatId: string) => {
+    delete mutedChatIds.value[chatId]
+  }
+
+  const toggleMuteChat = (chatId: string) => {
+    if (isMuted(chatId)) {
+      unmuteChat(chatId)
+      return
+    }
+    muteChat(chatId)
+  }
+
   const applySessionConfig = (payload: ChatSessionConfigPayload | null | undefined) => {
     const pinned = normalizeChatIdList(payload?.pinnedChatIds)
     const hidden = normalizeChatIdList(payload?.hiddenRecentChatIds)
+    const muted = normalizeChatIdList(payload?.mutedChatIds)
 
     const nextPinned: Record<string, boolean> = {}
     pinned.forEach((chatId) => {
@@ -1070,16 +1090,24 @@ export const useChatStore = defineStore('chat', () => {
       nextHidden[chatId] = true
     })
     hiddenRecentChatIds.value = nextHidden
+
+    const nextMuted: Record<string, boolean> = {}
+    muted.forEach((chatId) => {
+      nextMuted[chatId] = true
+    })
+    mutedChatIds.value = nextMuted
   }
 
   const exportSessionConfig = (): ChatSessionConfigPayload => ({
     pinnedChatIds: Object.keys(pinnedChatIds.value),
     hiddenRecentChatIds: Object.keys(hiddenRecentChatIds.value),
+    mutedChatIds: Object.keys(mutedChatIds.value),
   })
 
   const resetSessionConfig = () => {
     pinnedChatIds.value = {}
     hiddenRecentChatIds.value = {}
+    mutedChatIds.value = {}
   }
 
   const resetRuntimeState = () => {
@@ -1090,6 +1118,7 @@ export const useChatStore = defineStore('chat', () => {
     sequenceIndex.value = {}
     pinnedChatIds.value = {}
     hiddenRecentChatIds.value = {}
+    mutedChatIds.value = {}
     recentSnapshotByChatId.value = {}
     lastActiveAtByChatId.value = {}
     messageBytesByChatId.value = {}
@@ -1167,6 +1196,7 @@ export const useChatStore = defineStore('chat', () => {
       unreadByChatId: unreadByChatId.value,
       pinnedChatIds: pinnedChatIds.value,
       hiddenRecentChatIds: hiddenRecentChatIds.value,
+      mutedChatIds: mutedChatIds.value,
       recentSnapshotByChatId: recentSnapshotByChatId.value,
       cachedMessagesByChatId:
         cachedMessagesByChatId && Object.keys(cachedMessagesByChatId).length > 0
@@ -1184,6 +1214,7 @@ export const useChatStore = defineStore('chat', () => {
     unreadByChatId.value = toNumberRecord(parsed.unreadByChatId)
     pinnedChatIds.value = toBooleanRecord(parsed.pinnedChatIds)
     hiddenRecentChatIds.value = toBooleanRecord(parsed.hiddenRecentChatIds)
+    mutedChatIds.value = toBooleanRecord(parsed.mutedChatIds)
     recentSnapshotByChatId.value = parseRecentSnapshotMap(parsed.recentSnapshotByChatId)
     Object.entries(recentSnapshotByChatId.value).forEach(([chatId, snapshot]) => {
       if (!sessionMap.value[chatId]) {
@@ -1360,6 +1391,7 @@ export const useChatStore = defineStore('chat', () => {
     sequenceIndex,
     pinnedChatIds,
     hiddenRecentChatIds,
+    mutedChatIds,
     recentSnapshotByChatId,
     activeSession,
     recentChats,
@@ -1390,6 +1422,10 @@ export const useChatStore = defineStore('chat', () => {
     togglePinChat,
     removeFromRecent,
     restoreRecent,
+    isMuted,
+    muteChat,
+    unmuteChat,
+    toggleMuteChat,
     applySessionConfig,
     exportSessionConfig,
     resetSessionConfig,

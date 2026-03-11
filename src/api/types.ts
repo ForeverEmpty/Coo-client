@@ -141,6 +141,7 @@ export interface FriendRelationUpdateParams {
   friendId: string
   remark?: string
   groupId?: string
+  status?: 1 | 2 | 3
 }
 
 export interface ChatHistoryMessage {
@@ -176,6 +177,7 @@ export interface RecentPrivateChatItemVO {
 export interface ChatSessionConfig {
   pinnedChatIds: string[]
   hiddenRecentChatIds: string[]
+  mutedChatIds: string[]
 }
 
 export interface MutualFriendListVO {
@@ -196,11 +198,18 @@ export type GroupPermission =
   | 'GROUP_SET_SUPER_ADMIN'
   | 'GROUP_TRANSFER_OWNER'
   | 'GROUP_EDIT_MEMBER_NICKNAME'
+  | 'GROUP_FILE_VIEW'
+  | 'GROUP_FILE_UPLOAD'
+  | 'GROUP_FILE_MANAGE'
+  | 'GROUP_FILE_MANAGE_STORAGE'
+  | 'GROUP_RECALL_ANYTIME'
 
 export interface GroupListItem {
   id: string
   name: string
+  ownerId?: string
   avatar?: string
+  coverUrl?: string
   notice?: string
   remark?: string
   memberCount: number
@@ -214,6 +223,7 @@ export interface GroupInfo {
   id: string
   name: string
   avatar?: string
+  coverUrl?: string
   notice?: string
   remark?: string
   ownerId: string
@@ -225,6 +235,10 @@ export interface GroupInfo {
   myTitleName?: string
   myNicknameInGroup?: string
   myPermissions: GroupPermission[]
+  fileCapacityMb?: number
+  oversizeThresholdMb?: number
+  tempExpireDays?: number
+  usedStorageBytes?: number
 }
 
 export interface GroupMember {
@@ -261,10 +275,53 @@ export interface GroupJoinRequest {
   targetUser?: UserSimple
 }
 
+export interface GroupFileConfig {
+  fileCapacityMb: number
+  oversizeThresholdMb: number
+  tempExpireDays: number
+  usedStorageBytes: number
+  remainingStorageBytes: number
+}
+
+export interface GroupFileFolder {
+  id: string
+  groupId: string
+  parentId: string
+  name: string
+  createBy: string
+  createTime: string
+}
+
+export interface GroupFileItem {
+  id: string
+  groupId: string
+  folderId: string
+  fileName: string
+  url: string
+  fileSize: number
+  mimeType?: string
+  source?: string
+  sourceMessageId?: string
+  temp: boolean
+  expireAt?: string
+  createBy: string
+  createTime: string
+}
+
+export interface GroupFileUploadResult {
+  fileId: string
+  url: string
+  fileName: string
+  fileSize: number
+  temp: boolean
+  expireAt?: string
+}
+
 export interface GroupSearchItem {
   id: string
   name: string
   avatar?: string
+  coverUrl?: string
   notice?: string
   memberCount: number
   joined: boolean
@@ -274,6 +331,7 @@ export interface GroupSearchItem {
 export interface GroupCreateParams {
   name: string
   avatar?: string
+  coverUrl?: string
   notice?: string
   inviteAuditMode: number
   initialMemberIds?: string[]
@@ -282,6 +340,7 @@ export interface GroupCreateParams {
 export interface GroupUpdateParams {
   name?: string
   avatar?: string
+  coverUrl?: string
   notice?: string
   inviteAuditMode?: number
 }

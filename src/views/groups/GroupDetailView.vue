@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
-import { ArrowLeft, Crown, File as FileIcon, Images, Pencil, Shield, Trash2, UserPlus, Users } from 'lucide-vue-next'
+import { ArrowLeft, Pencil, Trash2, UserPlus, Users } from 'lucide-vue-next'
 import { socialApi } from '@/api/social'
 import type { GroupInfo, GroupJoinRequest, GroupMember, GroupPermission, GroupTitle } from '@/api/types'
 import { useChatStore } from '@/stores/chatStore'
@@ -44,7 +44,6 @@ const members = ref<GroupMember[]>([])
 const titles = ref<GroupTitle[]>([])
 const joinRequests = ref<GroupJoinRequest[]>([])
 type GroupDetailFocus = 'overview' | 'members' | 'titles' | 'review'
-type GroupSharedTab = 'images' | 'files'
 const SECTION_IDS: Record<GroupDetailFocus, string> = {
   overview: 'group-detail-overview',
   members: 'group-detail-members',
@@ -73,6 +72,11 @@ const titleForm = ref<{ name: string; sort: number; permissions: GroupPermission
   permissions: ['GROUP_VIEW'],
 })
 const nicknameValue = ref('')
+const fileConfigForm = ref({
+  fileCapacityMb: 1024,
+  oversizeThresholdMb: 100,
+  tempExpireDays: 7,
+})
 
 const permissionLabels: Record<GroupPermission, string> = {
   GROUP_VIEW: '查看群资料',
@@ -87,6 +91,11 @@ const permissionLabels: Record<GroupPermission, string> = {
   GROUP_SET_SUPER_ADMIN: '设置超管',
   GROUP_TRANSFER_OWNER: '转让群主',
   GROUP_EDIT_MEMBER_NICKNAME: '修改成员群昵称',
+  GROUP_FILE_VIEW: '查看群文件',
+  GROUP_FILE_UPLOAD: '上传群文件',
+  GROUP_FILE_MANAGE: '管理群文件',
+  GROUP_FILE_MANAGE_STORAGE: '管理群文件容量',
+  GROUP_RECALL_ANYTIME: '不限时撤回消息',
 }
 
 const groupId = computed(() => String(route.params.id || ''))
@@ -103,8 +112,7 @@ const canReview = computed(
 const canEditOthersNickname = computed(() => permissionSet.value.has('GROUP_EDIT_MEMBER_NICKNAME'))
 const canAssignTitle = computed(() => permissionSet.value.has('GROUP_ASSIGN_TITLE'))
 const canRemoveMember = computed(() => permissionSet.value.has('GROUP_REMOVE_MEMBER'))
-const isOwner = computed(() => groupInfo.value?.myRole === 1)
-const canSetSuperAdmin = computed(() => isOwner.value || permissionSet.value.has('GROUP_SET_SUPER_ADMIN'))
+const canManageGroupFileStorage = computed(() => permissionSet.value.has('GROUP_FILE_MANAGE_STORAGE'))
 
 const friendOptions = computed(() =>
   contactStore.friendGroups.flatMap((group) =>
@@ -129,10 +137,9 @@ const meAsMember = computed(
 const memberDisplayName = (member: GroupMember) =>
   member.nicknameInGroup || member.displayName || member.nickname || member.username || member.userId
 
-const roleText = (role?: number) => {
-  if (role === 1) return '群主'
-  if (role === 2) return '超级管理员'
-  return '成员'
+const isOwnerMember = (member: GroupMember) => {
+  const ownerId = String(groupInfo.value?.ownerId || '')
+  return ownerId && String(member.userId) === ownerId
 }
 
 const inviteAuditModeText = (mode?: number) => {
@@ -173,6 +180,11 @@ const loadAll = async () => {
       notice: groupRes.data?.notice || '',
       inviteAuditMode: String(groupRes.data?.inviteAuditMode ?? 0),
     }
+    fileConfigForm.value = {
+      fileCapacityMb: Number(groupRes.data?.fileCapacityMb || 1024),
+      oversizeThresholdMb: Number(groupRes.data?.oversizeThresholdMb || 100),
+      tempExpireDays: Number(groupRes.data?.tempExpireDays || 7),
+    }
 
     if ((groupRes.data?.myPermissions || []).some((item) => item === 'GROUP_REVIEW_INVITE' || item === 'GROUP_REVIEW_APPLY')) {
       const requestRes = await socialApi.getGroupJoinRequests(groupId.value)
@@ -206,25 +218,6 @@ const scrollToFocus = async (focus: GroupDetailFocus | null) => {
   target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-const openGroupSharedTab = (tab: GroupSharedTab) => {
-  if (!groupInfo.value) return
-  const sessionId = `group_${groupId.value}`
-  chatStore.setActiveChat({
-    id: sessionId,
-    title: groupInfo.value.remark || groupInfo.value.name || sessionId,
-    avatar: groupInfo.value.avatar || '',
-    type: 2,
-    subTitle: `${groupInfo.value.memberCount || 0} 人 · ${groupInfo.value.myTitleName || '群成员'}`,
-  })
-  void router.push({
-    path: '/chat',
-    query: {
-      groupId: groupId.value,
-      sidebarTab: tab,
-    },
-  })
-}
-
 const refreshAfterMutation = async () => {
   await Promise.all([loadAll(), contactStore.fetchGroupChats(true)])
   emitGroupUpdated(groupId.value)
@@ -250,6 +243,39 @@ const saveGroup = async () => {
     toast.success('群资料已更新')
     editDialogOpen.value = false
     await refreshAfterMutation()
+  } finally {
+    saving.value = false
+  }
+}
+
+const saveGroupFileConfig = async () => {
+  if (!canManageGroupFileStorage.value) return
+  const capacity = Number(fileConfigForm.value.fileCapacityMb)
+  const threshold = Number(fileConfigForm.value.oversizeThresholdMb)
+  const expireDays = Number(fileConfigForm.value.tempExpireDays)
+
+  if (!Number.isFinite(capacity) || capacity < 1) {
+    toast.error('群文件总容量需为正整数')
+    return
+  }
+  if (!Number.isFinite(threshold) || threshold < 1) {
+    toast.error('超大文件阈值需为正整数')
+    return
+  }
+  if (!Number.isFinite(expireDays) || expireDays < 1) {
+    toast.error('临时文件过期天数需为正整数')
+    return
+  }
+
+  saving.value = true
+  try {
+    await socialApi.updateGroupFileConfig(groupId.value, {
+      fileCapacityMb: Math.trunc(capacity),
+      oversizeThresholdMb: Math.trunc(threshold),
+      tempExpireDays: Math.trunc(expireDays),
+    })
+    toast.success('群文件配置已更新')
+    await loadAll()
   } finally {
     saving.value = false
   }
@@ -315,12 +341,6 @@ const saveNickname = async () => {
   } finally {
     saving.value = false
   }
-}
-
-const updateRole = async (member: GroupMember, role: number) => {
-  await socialApi.updateGroupMemberRole(groupId.value, member.userId, role)
-  toast.success('成员角色已更新')
-  await refreshAfterMutation()
 }
 
 const updateTitleForMember = async (member: GroupMember, titleId: string) => {
@@ -434,7 +454,22 @@ watch(
 
       <template v-else-if="groupInfo">
         <Card :id="SECTION_IDS.overview">
-          <CardContent class="flex flex-col gap-6 p-6 lg:flex-row lg:items-start lg:justify-between">
+          <CardContent class="space-y-6 p-6">
+            <div class="h-36 overflow-hidden rounded-xl border bg-muted">
+              <img
+                v-if="groupInfo.coverUrl"
+                :src="groupInfo.coverUrl"
+                alt="group-cover"
+                class="h-full w-full object-cover"
+              />
+              <div
+                v-else
+                class="flex h-full items-center justify-center bg-gradient-to-r from-slate-100 to-slate-200 text-sm text-muted-foreground"
+              >
+                暂无群背景
+              </div>
+            </div>
+            <div class="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div class="flex items-start gap-4">
               <Avatar class="h-20 w-20 rounded-2xl">
                 <AvatarImage :src="groupInfo.avatar || ''" />
@@ -450,7 +485,6 @@ watch(
                   {{ groupInfo.notice || '暂无群公告' }}
                 </p>
                 <div class="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                  <span>我的身份：{{ roleText(groupInfo.myRole) }}</span>
                   <span>我的头衔：{{ groupInfo.myTitleName || '未设置' }}</span>
                   <span>我的群昵称：{{ groupInfo.myNicknameInGroup || '未设置' }}</span>
                 </div>
@@ -459,16 +493,11 @@ watch(
 
             <div class="flex flex-wrap gap-2">
               <Button variant="outline" @click="openMyNicknameDialog">设置我的群昵称</Button>
-              <Button variant="outline" @click="openGroupSharedTab('images')">
-                <Images class="mr-2 h-4 w-4" />共享图片
-              </Button>
-              <Button variant="outline" @click="openGroupSharedTab('files')">
-                <FileIcon class="mr-2 h-4 w-4" />共享文件
-              </Button>
               <Button v-if="canEditGroup" variant="outline" @click="openEditDialog">编辑群资料</Button>
               <Button v-if="canInvite" @click="inviteDialogOpen = true">
                 <UserPlus class="mr-2 h-4 w-4" />邀请成员
               </Button>
+            </div>
             </div>
           </CardContent>
         </Card>
@@ -492,11 +521,8 @@ watch(
                   <div class="min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-2">
                       <span class="truncate text-sm font-medium">{{ memberDisplayName(member) }}</span>
-                      <Badge v-if="member.role === 1" variant="secondary">
-                        <Crown class="mr-1 h-3 w-3" />群主
-                      </Badge>
-                      <Badge v-else-if="member.role === 2" variant="secondary">
-                        <Shield class="mr-1 h-3 w-3" />超管
+                      <Badge v-if="isOwnerMember(member)" variant="secondary">
+                        群主
                       </Badge>
                     </div>
                     <p class="text-xs text-muted-foreground">
@@ -517,7 +543,7 @@ watch(
                   </Button>
 
                   <Select
-                    v-if="canAssignTitle && member.role !== 1"
+                    v-if="canAssignTitle && !isOwnerMember(member)"
                     :model-value="member.titleId"
                     @update:model-value="(value) => value && updateTitleForMember(member, String(value))"
                   >
@@ -532,16 +558,7 @@ watch(
                   </Select>
 
                   <Button
-                    v-if="canSetSuperAdmin && member.role !== 1"
-                    variant="outline"
-                    size="sm"
-                    @click="updateRole(member, member.role === 2 ? 3 : 2)"
-                  >
-                    {{ member.role === 2 ? '取消超管' : '设为超管' }}
-                  </Button>
-
-                  <Button
-                    v-if="canRemoveMember && member.role !== 1"
+                    v-if="canRemoveMember && !isOwnerMember(member)"
                     variant="destructive"
                     size="sm"
                     @click="removeMember(member)"
@@ -597,6 +614,38 @@ watch(
                     </Badge>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>群文件配置</CardTitle>
+              </CardHeader>
+              <CardContent class="space-y-3">
+                <div class="grid gap-2">
+                  <label class="text-xs text-muted-foreground">总容量 (MB)</label>
+                  <Input v-model.number="fileConfigForm.fileCapacityMb" type="number" min="1" />
+                </div>
+                <div class="grid gap-2">
+                  <label class="text-xs text-muted-foreground">超大文件阈值 (MB)</label>
+                  <Input v-model.number="fileConfigForm.oversizeThresholdMb" type="number" min="1" />
+                </div>
+                <div class="grid gap-2">
+                  <label class="text-xs text-muted-foreground">临时文件过期天数</label>
+                  <Input v-model.number="fileConfigForm.tempExpireDays" type="number" min="1" />
+                </div>
+                <p class="text-xs text-muted-foreground">
+                  当前已使用：{{ groupInfo.usedStorageBytes || 0 }} bytes
+                </p>
+                <Button
+                  v-if="canManageGroupFileStorage"
+                  size="sm"
+                  :disabled="saving"
+                  @click="saveGroupFileConfig"
+                >
+                  {{ saving ? '保存中...' : '保存群文件配置' }}
+                </Button>
+                <p v-else class="text-xs text-muted-foreground">你暂无修改群文件配置权限</p>
               </CardContent>
             </Card>
 

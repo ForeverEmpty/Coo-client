@@ -99,6 +99,16 @@ export const WindowPresets: Record<string, IWindowPreset> = {
     resizable: true,
     hasShadow: true,
   },
+  GROUP_FILES: {
+    ...commonOptions,
+    width: 980,
+    height: 760,
+    minWidth: 820,
+    minHeight: 620,
+    frame: false,
+    resizable: true,
+    hasShadow: true,
+  },
 }
 
 export const WindowUrls: Record<string, string> = {
@@ -110,4 +120,5 @@ export const WindowUrls: Record<string, string> = {
   GROUP_MANAGE: '/contacts/group-manage',
   ACCEPT_APPLY: '/contacts/accept-apply',
   IMAGE_EDITOR: '/profile/image-editor',
+  GROUP_FILES: '/groups/0/files',
 }

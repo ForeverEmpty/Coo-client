@@ -1,5 +1,6 @@
 import { useDebounceFn } from '@vueuse/core'
-import { onUnmounted, watch } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { socialApi } from '@/api/social'
 import { useChatStore } from '@/stores/chatStore'
 import { useUserStore } from '@/stores/userStore'
@@ -14,9 +15,18 @@ export function useChatSessionConfigSync() {
 
   const userStore = useUserStore()
   const chatStore = useChatStore()
+  const route = useRoute()
+  const router = useRouter()
 
   let hydrating = false
   let syncedUserId: string | null = null
+  const routerReady = ref(false)
+  let validatedToken: string | null = null
+
+  const isAuthRoute = () => route.path.startsWith('/auth')
+  void router.isReady().then(() => {
+    routerReady.value = true
+  })
 
   const buildFriendMetaMap = async () => {
     const map: Record<string, { title: string; avatar?: string }> = {}
@@ -38,6 +48,7 @@ export function useChatSessionConfigSync() {
   }
 
   const persistConfig = useDebounceFn(async () => {
+    if (isAuthRoute()) return
     const token = userStore.token
     const userId = userStore.userInfo?.id
     if (!token || !userId) return
@@ -51,6 +62,7 @@ export function useChatSessionConfigSync() {
   }, 400)
 
   const persistRecentState = useDebounceFn(() => {
+    if (isAuthRoute()) return
     const token = userStore.token
     const userId = userStore.userInfo?.id
     if (!token || !userId) return
@@ -59,9 +71,13 @@ export function useChatSessionConfigSync() {
   }, 150)
 
   const stopAuthWatch = watch(
-    () => [userStore.token, userStore.userInfo?.id] as const,
-    async ([token, userId]) => {
-      if (!token || !userId) {
+    () => [userStore.token, userStore.userInfo?.id, route.path, routerReady.value] as const,
+    async ([token, userId, path, ready]) => {
+      if (!ready) return
+      if (!token || !userId || path.startsWith('/auth')) {
+        if (!token) {
+          validatedToken = null
+        }
         syncedUserId = null
         chatStore.resetRuntimeState()
         return
@@ -70,8 +86,32 @@ export function useChatSessionConfigSync() {
       if (syncedUserId === userId) {
         return
       }
-
+      if (hydrating) {
+        return
+      }
       hydrating = true
+
+      // Validate auth at most once per token to avoid repeated auth/me calls.
+      if (token !== validatedToken) {
+        await userStore.fetchUserInfo()
+        const latestToken = userStore.token
+        const latestUserId = userStore.userInfo?.id
+        validatedToken = latestToken || null
+        if (!latestToken || !latestUserId || isAuthRoute()) {
+          hydrating = false
+          syncedUserId = null
+          chatStore.resetRuntimeState()
+          return
+        }
+
+        token = latestToken
+        userId = latestUserId
+        if (syncedUserId === userId) {
+          hydrating = false
+          return
+        }
+      }
+
       try {
         chatStore.resetRuntimeState()
 
@@ -113,7 +153,7 @@ export function useChatSessionConfigSync() {
   )
 
   const stopConfigWatch = watch(
-    () => [chatStore.pinnedChatIds, chatStore.hiddenRecentChatIds] as const,
+    () => [chatStore.pinnedChatIds, chatStore.hiddenRecentChatIds, chatStore.mutedChatIds] as const,
     () => {
       void persistConfig()
     },

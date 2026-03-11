@@ -31,6 +31,13 @@ const filteredChats = computed(() => {
   })
 })
 
+const firstUnpinnedIndex = computed(() =>
+  filteredChats.value.findIndex((item) => !item.pinned),
+)
+
+const showPinnedDivider = (index: number) =>
+  index > 0 && firstUnpinnedIndex.value > 0 && index === firstUnpinnedIndex.value
+
 const suggestionItems = computed(() => {
   if (!normalizedKeyword.value) {
     return [] as RecentChatItem[]
@@ -206,52 +213,53 @@ const getRecentMenu = (item: RecentChatItem) =>
 
     <ScrollArea class="min-h-0 flex-1">
       <div v-if="filteredChats.length > 0" class="flex flex-col">
-        <QuickContextMenu
-          v-for="chat in filteredChats"
-          :key="chat.chatId"
-          :menu="getRecentMenu(chat)"
-          trigger="contextmenu"
-          trigger-class="w-full"
-        >
-          <div
-            class="group flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
-            :class="
-              cn(
-                chatStore.activeChatId === chat.chatId
-                  ? 'bg-primary/10 hover:bg-primary/10'
-                  : undefined,
-              )
-            "
-            @click="openChat(chat)"
+        <template v-for="(chat, index) in filteredChats" :key="chat.chatId">
+          <div v-if="showPinnedDivider(index)" class="mx-4 my-1 border-t border-border/70" />
+          <QuickContextMenu
+            :menu="getRecentMenu(chat)"
+            trigger="contextmenu"
+            trigger-class="w-full"
           >
-            <Avatar class="h-12 w-12 rounded-xl">
-              <AvatarImage :src="chat.avatar || ''" />
-              <AvatarFallback>{{ chat.title?.[0] || 'U' }}</AvatarFallback>
-            </Avatar>
+            <div
+              class="group flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
+              :class="
+                cn(
+                  chatStore.activeChatId === chat.chatId
+                    ? 'bg-primary/10 hover:bg-primary/10'
+                    : undefined,
+                )
+              "
+              @click="openChat(chat)"
+            >
+              <Avatar class="h-12 w-12 rounded-xl">
+                <AvatarImage :src="chat.avatar || ''" />
+                <AvatarFallback>{{ chat.title?.[0] || 'U' }}</AvatarFallback>
+              </Avatar>
 
-            <div class="min-w-0 flex-1">
-              <div class="mb-1 flex items-center gap-1.5">
-                <span class="truncate text-sm font-medium">{{ chat.title }}</span>
-                <Pin v-if="chat.pinned" class="h-3.5 w-3.5 shrink-0 text-amber-500" />
+              <div class="min-w-0 flex-1">
+                <div class="mb-1 flex items-center gap-1.5">
+                  <span class="truncate text-sm font-medium">{{ chat.title }}</span>
+                  <Pin v-if="chat.pinned" class="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                </div>
+                <p class="truncate text-xs text-muted-foreground">
+                  {{ previewText(chat.lastMessageText) }}
+                </p>
               </div>
-              <p class="truncate text-xs text-muted-foreground">
-                {{ previewText(chat.lastMessageText) }}
-              </p>
-            </div>
 
-            <div class="mt-0.5 flex min-w-10 shrink-0 flex-col items-end gap-1">
-              <span class="text-[10px] text-muted-foreground">
-                {{ formatLastTime(chat.lastMessageTime) }}
-              </span>
-              <div
-                v-if="chat.unreadCount"
-                class="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] text-white"
-              >
-                {{ chat.unreadCount > 99 ? '99+' : chat.unreadCount }}
+              <div class="mt-0.5 flex min-w-10 shrink-0 flex-col items-end gap-1">
+                <span class="text-[10px] text-muted-foreground">
+                  {{ formatLastTime(chat.lastMessageTime) }}
+                </span>
+                <div
+                  v-if="chat.unreadCount"
+                  class="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] text-white"
+                >
+                  {{ chat.unreadCount > 99 ? '99+' : chat.unreadCount }}
+                </div>
               </div>
             </div>
-          </div>
-        </QuickContextMenu>
+          </QuickContextMenu>
+        </template>
       </div>
 
       <div v-else class="flex h-full flex-col items-center justify-center gap-2 p-6 text-muted-foreground">

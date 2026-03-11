@@ -1,6 +1,8 @@
 ﻿import { onUnmounted } from 'vue'
+import { ContentType } from '@/api/enum'
 import type { ChatMessage, ChatRecallMessage, FriendGroup, GroupInfo, UserInfo } from '@/api/types'
 import { socialApi } from '@/api/social'
+import { platform } from '@/platform'
 import { useChatStore } from '@/stores/chatStore'
 import { useUserStore } from '@/stores/userStore'
 import { wsManager } from '@/ws/manager'
@@ -10,6 +12,25 @@ let friendDirectoryLoaded = false
 const resolvingChatMeta = new Map<string, Promise<void>>()
 const privateChatMetaCache = new Map<string, { title: string; avatar?: string }>()
 const groupMetaCache = new Map<string, { title: string; avatar?: string; subTitle?: string }>()
+let appFocused = true
+
+const updateAppFocused = () => {
+  if (typeof document === 'undefined') {
+    appFocused = true
+    return
+  }
+  const hasFocus = typeof document.hasFocus !== 'function' || document.hasFocus()
+  appFocused = document.visibilityState === 'visible' && hasFocus
+}
+
+const buildNotificationBody = (data: ChatMessage) => {
+  if (data.contentType === ContentType.IMAGE) return '[图片]'
+  if (data.contentType === ContentType.FILE) {
+    const name = String(data.fileName || data.content || '').trim()
+    return name ? `[文件] ${name}` : '[文件]'
+  }
+  return String(data.content || '').trim() || '[新消息]'
+}
 
 const cacheFromFriendList = async () => {
   if (friendDirectoryLoaded) return
@@ -133,6 +154,25 @@ export function useChatEventBridge() {
 
   const chatStore = useChatStore()
   const userStore = useUserStore()
+  updateAppFocused()
+
+  const handleWindowFocus = () => {
+    appFocused = true
+  }
+  const handleWindowBlur = () => {
+    appFocused = false
+  }
+  const handleVisibilityChange = () => {
+    updateAppFocused()
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('focus', handleWindowFocus)
+    window.addEventListener('blur', handleWindowBlur)
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+  }
 
   const offChat = wsManager.subscribe('chat', (model) => {
     const data = model.data as ChatMessage | undefined
@@ -168,6 +208,13 @@ export function useChatEventBridge() {
     if (chatStore.activeChatId !== chatId) {
       chatStore.incrementUnread(chatId)
     }
+
+    if (appFocused || chatStore.isMuted(chatId)) {
+      return
+    }
+
+    const title = chatStore.sessionMap[chatId]?.title || (chatType === 2 ? '群消息' : '新消息')
+    platform.notification.send(title, buildNotificationBody(data))
   })
 
   const offAck = wsManager.subscribe('ack', (model) => {
@@ -187,6 +234,13 @@ export function useChatEventBridge() {
     offChat()
     offAck()
     offRecall()
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('focus', handleWindowFocus)
+      window.removeEventListener('blur', handleWindowBlur)
+    }
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
     initialized = false
   })
 }

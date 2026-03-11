@@ -4,7 +4,6 @@ import { toast } from 'vue-sonner'
 import { Loader2, Upload, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { authApi } from '@/api/auth'
-import { fileApi } from '@/api/file'
 import {
   profileImagePresets,
   type ProfileImageCropPreset,
@@ -312,7 +311,7 @@ const handleConfirm = async () => {
       type: preset.value.mimeType,
     })
 
-    const { data: url } = await fileApi.upload(
+    const { data: url } = await authApi.uploadProfileFile(
       uploadFile,
       (progress) => {
         toast.loading(`上传${preset.value.title}中... ${progress}%`, { id: toastId })

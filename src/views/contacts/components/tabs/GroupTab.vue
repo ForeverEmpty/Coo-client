@@ -105,7 +105,14 @@ const resetCreateForm = () => {
 }
 
 const rawGroupId = (groupId: string) => (groupId.startsWith('group_') ? groupId.slice(6) : groupId)
-const isOwnerGroup = (group?: GroupChatMeta | null) => group?.myRole === 1
+const isOwnerGroup = (group?: GroupChatMeta | null) => {
+  if (!group) return false
+  const currentUserId = String(userStore.userInfo?.id || '')
+  if (group.ownerId && currentUserId) {
+    return String(group.ownerId) === currentUserId
+  }
+  return group.myRole === 1
+}
 const notifyGroupUpdated = (groupId?: string) => {
   const id = String(groupId || '').trim()
   if (!id) return
@@ -167,7 +174,6 @@ const openChat = (group: GroupChatMeta) => {
     type: 2,
     subTitle: `${group.memberCount || 0} 人 · ${group.myTitleName || '群成员'}`,
   })
-  router.push('/chat')
 }
 
 const openRemarkDialog = (group: GroupChatMeta) => {
