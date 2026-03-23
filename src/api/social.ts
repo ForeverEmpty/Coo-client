@@ -127,6 +127,9 @@ export const socialApi = {
   setDefaultGroupTitle: (groupId: string, titleId: string) =>
     request.put<Result<string>>(`social/group/${groupId}/titles/${titleId}/default`),
 
+  sortGroupTitles: (groupId: string, titleIds: string[]) =>
+    request.put<Result<string>>(`social/group/${groupId}/titles/sort`, { titleIds }),
+
   deleteGroupTitle: (groupId: string, titleId: string) =>
     request.delete<Result<string>>(`social/group/${groupId}/titles/${titleId}`),
 

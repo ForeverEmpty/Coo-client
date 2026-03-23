@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed } from 'vue'
 import { AlertCircle, Check, FileIcon, Loader2 } from 'lucide-vue-next'
 import { ContentType } from '@/api/enum'
@@ -21,7 +21,7 @@ const props = defineProps<{
   isGroup: boolean
   multiSelectMode: boolean
   isSelected: boolean
-  senderMeta: { name: string; avatar?: string; role?: number }
+  senderMeta: { name: string; avatar?: string }
   messageMenu: QuickContextMenuEntry[]
   retryAnimating: boolean
   rowRef?: (el: Element | null) => void
@@ -230,4 +230,5 @@ const rowClass = computed(() => [
   }
 }
 </style>
+
 

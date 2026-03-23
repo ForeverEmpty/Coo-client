@@ -25,6 +25,8 @@ const request = axios.create({
   timeout: 5000,
 }) as TypedAxiosInstance
 
+const hasAuthToken = () => Boolean(localStorage.getItem('coo_token'))
+
 request.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('coo_token')
@@ -50,6 +52,9 @@ request.interceptors.response.use(
     }
 
     if (res.code === 401) {
+      if (!hasAuthToken()) {
+        return Promise.reject(new Error(res.message || 'Unauthorized'))
+      }
       requestObserver.emit('UNAUTHORIZED', { message: res.message, code: res.code })
     } else {
       requestObserver.emit('ERROR', { message: res.message, code: res.code })
@@ -63,8 +68,20 @@ request.interceptors.response.use(
 
     if (error.code === 'ECONNABORTED') {
       requestObserver.emit('TIMEOUT', { message: 'Timeout', config: error.config })
+    } else if (error.response?.status === 401) {
+      if (hasAuthToken()) {
+        requestObserver.emit('UNAUTHORIZED', {
+          message: error.response?.data?.message || error.message || 'Unauthorized',
+          code: 401,
+          config: error.config,
+        })
+      }
     } else {
-      requestObserver.emit('ERROR', { message: error.message })
+      requestObserver.emit('ERROR', {
+        message: error.response?.data?.message || error.message,
+        code: error.response?.status,
+        config: error.config,
+      })
     }
     return Promise.reject(error)
   },

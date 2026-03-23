@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
@@ -82,13 +82,12 @@ const myAvatar = computed(() => userStore.userInfo?.avatar || '')
 const peerAvatar = computed(() => sessionMeta.value?.avatar || '')
 const peerName = computed(() => sessionMeta.value?.title || '')
 const currentUserGroupPermissions = computed(() => groupInfo.value?.myPermissions || [])
-const groupMemberMap = computed<Record<string, { name: string; avatar?: string; role?: number }>>(() => {
-  const map: Record<string, { name: string; avatar?: string; role?: number }> = {}
+const groupMemberMap = computed<Record<string, { name: string; avatar?: string }>>(() => {
+  const map: Record<string, { name: string; avatar?: string }> = {}
   groupMembers.value.forEach((member) => {
     map[String(member.userId)] = {
       name: member.nicknameInGroup || member.displayName || member.nickname || member.username || String(member.userId),
       avatar: member.avatar || '',
-      role: member.role,
     }
   })
   return map
@@ -125,10 +124,7 @@ const historyHasMore = computed(() => {
 const isPrivateChat = computed(() => !!props.chatId && !isGroup.value)
 const isGroupOwner = computed(() => {
   const currentUserId = String(userStore.userInfo?.id || '')
-  if (groupInfo.value?.ownerId && currentUserId) {
-    return String(groupInfo.value.ownerId) === currentUserId
-  }
-  return Number(groupInfo.value?.myRole || 0) === 1
+  return !!groupInfo.value?.ownerId && !!currentUserId && String(groupInfo.value.ownerId) === currentUserId
 })
 const isPinned = computed(() => (props.chatId ? chatStore.isPinned(props.chatId) : false))
 const isMuted = computed(() => (props.chatId ? chatStore.isMuted(props.chatId) : false))
@@ -1165,3 +1161,5 @@ onBeforeUnmount(() => {
   opacity: 0;
 }
 </style>
+
+

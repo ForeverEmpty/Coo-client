@@ -8,7 +8,6 @@ import {
   Megaphone,
   RefreshCw,
   Settings,
-  Shield,
   Users,
   X,
 } from 'lucide-vue-next'
@@ -27,7 +26,6 @@ interface GroupSidebarMember {
   id: string
   name: string
   avatar?: string
-  role?: number | string
 }
 
 type GroupSidebarTab = 'members' | 'images' | 'files' | 'manage'
@@ -66,12 +64,6 @@ const previewImageKey = ref(0)
 
 const groupRawId = computed(() => (props.groupId.startsWith('group_') ? props.groupId.slice(6) : props.groupId))
 const memberTotalText = computed(() => `${props.memberCount || props.members.length || 0} 人`)
-
-const roleLabel = (role?: number | string) => {
-  if (String(role) === '1' || String(role).toLowerCase() === 'owner') return '群主'
-  if (String(role) === '2' || String(role).toLowerCase() === 'super_admin') return '超管'
-  return '成员'
-}
 
 const createEmptyState = (): SharedTabState => ({
   list: [],
@@ -365,9 +357,7 @@ onMounted(() => {
               </Avatar>
               <div class="min-w-0 flex-1">
                 <div class="truncate text-xs font-medium text-foreground">{{ member.name }}</div>
-                <div class="text-[10px] text-muted-foreground">{{ roleLabel(member.role) }}</div>
               </div>
-              <Shield v-if="String(member.role) === '1' || String(member.role) === '2'" class="h-3.5 w-3.5 text-primary" />
             </div>
           </div>
         </ScrollArea>

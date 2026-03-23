@@ -108,10 +108,7 @@ const rawGroupId = (groupId: string) => (groupId.startsWith('group_') ? groupId.
 const isOwnerGroup = (group?: GroupChatMeta | null) => {
   if (!group) return false
   const currentUserId = String(userStore.userInfo?.id || '')
-  if (group.ownerId && currentUserId) {
-    return String(group.ownerId) === currentUserId
-  }
-  return group.myRole === 1
+  return !!group.ownerId && !!currentUserId && String(group.ownerId) === currentUserId
 }
 const notifyGroupUpdated = (groupId?: string) => {
   const id = String(groupId || '').trim()

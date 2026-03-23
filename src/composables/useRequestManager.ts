@@ -12,6 +12,8 @@ export function useRequestManager() {
   const { p, isElectron } = usePlatform()
 
   const unSubError = requestObserver.onError((payload) => {
+    if (payload.code === 401) return
+
     toast.error(payload.message || 'Request failed')
 
     if (isElectron) {

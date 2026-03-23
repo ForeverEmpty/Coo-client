@@ -15,7 +15,6 @@ export interface GroupChatMeta {
   memberCount?: number
   notice?: string
   remark?: string
-  myRole?: number
   myTitleName?: string
   myNicknameInGroup?: string
 }
@@ -31,7 +30,6 @@ const mapGroupToMeta = (group: GroupListItem): GroupChatMeta => ({
   memberCount: group.memberCount,
   notice: group.notice,
   remark: group.remark,
-  myRole: group.myRole,
   myTitleName: group.myTitleName,
   myNicknameInGroup: group.myNicknameInGroup,
 })

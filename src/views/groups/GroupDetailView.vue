@@ -1,10 +1,29 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
-import { ArrowLeft, Pencil, Trash2, UserPlus, Users } from 'lucide-vue-next'
+import {
+  ArrowLeft,
+  ArrowDown,
+  ArrowUp,
+  Pencil,
+  Trash2,
+  UserPlus,
+  Users,
+  Info,
+  ShieldCheck,
+  MessageSquare,
+  Folder,
+  Bell,
+} from 'lucide-vue-next'
 import { socialApi } from '@/api/social'
-import type { GroupInfo, GroupJoinRequest, GroupMember, GroupPermission, GroupTitle } from '@/api/types'
+import type {
+  GroupInfo,
+  GroupJoinRequest,
+  GroupMember,
+  GroupPermission,
+  GroupTitle,
+} from '@/api/types'
 import { useChatStore } from '@/stores/chatStore'
 import { useContactStore } from '@/stores/contactStore'
 import { useUserStore } from '@/stores/userStore'
@@ -12,7 +31,9 @@ import { emitGroupUpdated } from '@/utils/groupSync'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
+import InfoItem from '@/views/profile/components/InfoItem.vue'
+import ProfileSection from '@/views/profile/components/ProfileSection.vue'
 import {
   Dialog,
   DialogContent,
@@ -55,6 +76,8 @@ const editDialogOpen = ref(false)
 const inviteDialogOpen = ref(false)
 const titleDialogOpen = ref(false)
 const nicknameDialogOpen = ref(false)
+const titleOrderIds = ref<string[]>([])
+const draggingTitleId = ref<string | null>(null)
 
 const editingTitle = ref<GroupTitle | null>(null)
 const editingMember = ref<GroupMember | null>(null)
@@ -88,7 +111,6 @@ const permissionLabels: Record<GroupPermission, string> = {
   GROUP_REMOVE_MEMBER: '移除成员',
   GROUP_ASSIGN_TITLE: '分配头衔',
   GROUP_MANAGE_TITLE: '管理头衔',
-  GROUP_SET_SUPER_ADMIN: '设置超管',
   GROUP_TRANSFER_OWNER: '转让群主',
   GROUP_EDIT_MEMBER_NICKNAME: '修改成员群昵称',
   GROUP_FILE_VIEW: '查看群文件',
@@ -107,12 +129,15 @@ const canEditGroup = computed(
 const canManageTitles = computed(() => permissionSet.value.has('GROUP_MANAGE_TITLE'))
 const canInvite = computed(() => permissionSet.value.has('GROUP_INVITE_MEMBER'))
 const canReview = computed(
-  () => permissionSet.value.has('GROUP_REVIEW_INVITE') || permissionSet.value.has('GROUP_REVIEW_APPLY'),
+  () =>
+    permissionSet.value.has('GROUP_REVIEW_INVITE') || permissionSet.value.has('GROUP_REVIEW_APPLY'),
 )
 const canEditOthersNickname = computed(() => permissionSet.value.has('GROUP_EDIT_MEMBER_NICKNAME'))
 const canAssignTitle = computed(() => permissionSet.value.has('GROUP_ASSIGN_TITLE'))
 const canRemoveMember = computed(() => permissionSet.value.has('GROUP_REMOVE_MEMBER'))
-const canManageGroupFileStorage = computed(() => permissionSet.value.has('GROUP_FILE_MANAGE_STORAGE'))
+const canManageGroupFileStorage = computed(() =>
+  permissionSet.value.has('GROUP_FILE_MANAGE_STORAGE'),
+)
 
 const friendOptions = computed(() =>
   contactStore.friendGroups.flatMap((group) =>
@@ -128,14 +153,43 @@ const availableInviteOptions = computed(() => {
   return friendOptions.value.filter((item) => !memberIdSet.has(item.id))
 })
 
-const sortedTitles = computed(() => [...titles.value].sort((a, b) => a.sort - b.sort))
-const visibleJoinRequests = computed(() => joinRequests.value.filter((item) => item.status === 'PENDING'))
+const baseSortedTitles = computed(() => [...titles.value].sort((a, b) => a.sort - b.sort))
+const sortedTitles = computed(() => {
+  const orderedIds = titleOrderIds.value
+  if (orderedIds.length !== baseSortedTitles.value.length) {
+    return baseSortedTitles.value
+  }
+  const titleMap = new Map(baseSortedTitles.value.map((title) => [title.id, title]))
+  const ordered = orderedIds
+    .map((id) => titleMap.get(id))
+    .filter((title): title is GroupTitle => !!title)
+  return ordered.length === baseSortedTitles.value.length ? ordered : baseSortedTitles.value
+})
+const titleSortDirty = computed(() =>
+  titleOrderIds.value.length === baseSortedTitles.value.length &&
+  titleOrderIds.value.some((id, index) => id !== baseSortedTitles.value[index]?.id),
+)
+const visibleJoinRequests = computed(() =>
+  joinRequests.value.filter((item) => item.status === 'PENDING'),
+)
 const meAsMember = computed(
   () => members.value.find((item) => item.userId === myUserId.value) || null,
 )
 
+watch(
+  baseSortedTitles,
+  (list) => {
+    titleOrderIds.value = list.map((title) => title.id)
+  },
+  { immediate: true },
+)
+
 const memberDisplayName = (member: GroupMember) =>
-  member.nicknameInGroup || member.displayName || member.nickname || member.username || member.userId
+  member.nicknameInGroup ||
+  member.displayName ||
+  member.nickname ||
+  member.username ||
+  member.userId
 
 const isOwnerMember = (member: GroupMember) => {
   const ownerId = String(groupInfo.value?.ownerId || '')
@@ -186,7 +240,11 @@ const loadAll = async () => {
       tempExpireDays: Number(groupRes.data?.tempExpireDays || 7),
     }
 
-    if ((groupRes.data?.myPermissions || []).some((item) => item === 'GROUP_REVIEW_INVITE' || item === 'GROUP_REVIEW_APPLY')) {
+    if (
+      (groupRes.data?.myPermissions || []).some(
+        (item) => item === 'GROUP_REVIEW_INVITE' || item === 'GROUP_REVIEW_APPLY',
+      )
+    ) {
       const requestRes = await socialApi.getGroupJoinRequests(groupId.value)
       joinRequests.value = requestRes.data || []
     } else {
@@ -198,7 +256,9 @@ const loadAll = async () => {
 }
 
 const resolveFocus = (raw: unknown): GroupDetailFocus | null => {
-  const value = String(raw || '').trim().toLowerCase()
+  const value = String(raw || '')
+    .trim()
+    .toLowerCase()
   if (value === 'overview' || value === 'members' || value === 'titles' || value === 'review') {
     return value
   }
@@ -263,7 +323,7 @@ const saveGroupFileConfig = async () => {
     return
   }
   if (!Number.isFinite(expireDays) || expireDays < 1) {
-    toast.error('临时文件过期天数需为正整数')
+    toast.error('请选择要邀请的好友')
     return
   }
 
@@ -365,6 +425,46 @@ const openCreateTitle = () => {
   titleDialogOpen.value = true
 }
 
+const isOwnerTitle = (title: GroupTitle) => title.systemKey === 'OWNER'
+
+const moveTitle = (titleId: string, direction: -1 | 1) => {
+  const currentIndex = titleOrderIds.value.findIndex((id) => id === titleId)
+  if (currentIndex < 0) return
+
+  const nextIndex = currentIndex + direction
+  if (currentIndex === 0 || nextIndex < 1 || nextIndex >= titleOrderIds.value.length) {
+    return
+  }
+
+  const next = [...titleOrderIds.value]
+  const currentValue = next[currentIndex]
+  const targetValue = next[nextIndex]
+  if (currentValue === undefined || targetValue === undefined) return
+  next[currentIndex] = targetValue
+  next[nextIndex] = currentValue
+  titleOrderIds.value = next
+}
+
+const handleTitleDragStart = (titleId: string) => {
+  draggingTitleId.value = titleId
+}
+
+const handleTitleDrop = (targetTitleId: string) => {
+  const sourceTitleId = draggingTitleId.value
+  draggingTitleId.value = null
+
+  if (!sourceTitleId || sourceTitleId === targetTitleId) return
+
+  const sourceIndex = titleOrderIds.value.findIndex((id) => id === sourceTitleId)
+  const targetIndex = titleOrderIds.value.findIndex((id) => id === targetTitleId)
+  if (sourceIndex < 1 || targetIndex < 1) return
+
+  const next = [...titleOrderIds.value]
+  next.splice(sourceIndex, 1)
+  next.splice(targetIndex, 0, sourceTitleId)
+  titleOrderIds.value = next
+}
+
 const openEditTitle = (title: GroupTitle) => {
   editingTitle.value = title
   titleForm.value = {
@@ -418,6 +518,13 @@ const deleteTitle = async (titleId: string) => {
   await refreshAfterMutation()
 }
 
+const saveTitleOrder = async () => {
+  if (!titleSortDirty.value) return
+  await socialApi.sortGroupTitles(groupId.value, titleOrderIds.value)
+  toast.success('头衔排序已更新')
+  await refreshAfterMutation()
+}
+
 const auditRequest = async (requestId: string, approve: boolean) => {
   await socialApi.auditGroupJoinRequest(groupId.value, requestId, { approve })
   toast.success(approve ? '已通过申请' : '已拒绝申请')
@@ -441,274 +548,462 @@ watch(
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto p-6">
-    <div class="mx-auto max-w-6xl space-y-6">
-      <div class="flex items-center gap-3">
-        <Button variant="ghost" size="icon" @click="router.back()">
-          <ArrowLeft class="h-5 w-5" />
-        </Button>
-        <span class="text-xl font-semibold">群资料</span>
-      </div>
+  <div class="flex flex-col h-full bg-background select-none">
+    
+    <header
+      class="h-14 border-b flex items-center px-4 gap-4 shrink-0 bg-background/80 backdrop-blur-md z-10 sticky top-0"
+    >
+      <Button variant="ghost" size="icon" @click="router.back()" class="rounded-full no-drag">
+        <ArrowLeft class="h-5 w-5" />
+      </Button>
+      <span class="font-semibold text-lg">群资料</span>
+    </header>
 
-      <div v-if="loading" class="text-sm text-muted-foreground">加载中...</div>
+    <div class="flex-1 overflow-y-auto custom-scrollbar">
+      <div v-if="loading" class="text-sm text-muted-foreground p-6">加载中...</div>
 
       <template v-else-if="groupInfo">
-        <Card :id="SECTION_IDS.overview">
-          <CardContent class="space-y-6 p-6">
-            <div class="h-36 overflow-hidden rounded-xl border bg-muted">
-              <img
-                v-if="groupInfo.coverUrl"
-                :src="groupInfo.coverUrl"
-                alt="group-cover"
-                class="h-full w-full object-cover"
-              />
-              <div
-                v-else
-                class="flex h-full items-center justify-center bg-gradient-to-r from-slate-100 to-slate-200 text-sm text-muted-foreground"
-              >
-                暂无群背景
-              </div>
-            </div>
-            <div class="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-            <div class="flex items-start gap-4">
-              <Avatar class="h-20 w-20 rounded-2xl">
-                <AvatarImage :src="groupInfo.avatar || ''" />
-                <AvatarFallback class="rounded-2xl text-lg">群</AvatarFallback>
-              </Avatar>
-              <div class="space-y-2">
-                <div class="flex flex-wrap items-center gap-2">
-                  <h1 class="text-2xl font-bold">{{ groupInfo.name }}</h1>
-                  <Badge variant="secondary">{{ groupInfo.memberCount }} 人</Badge>
-                  <Badge variant="outline">{{ inviteAuditModeText(groupInfo.inviteAuditMode) }}</Badge>
-                </div>
-                <p class="max-w-3xl text-sm text-muted-foreground">
-                  {{ groupInfo.notice || '暂无群公告' }}
-                </p>
-                <div class="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                  <span>我的头衔：{{ groupInfo.myTitleName || '未设置' }}</span>
-                  <span>我的群昵称：{{ groupInfo.myNicknameInGroup || '未设置' }}</span>
-                </div>
-              </div>
-            </div>
+        
+        <div
+          class="h-56 bg-muted relative transition-all duration-500 bg-cover bg-center"
+          :style="{
+            backgroundImage: groupInfo?.coverUrl ? `url(${groupInfo.coverUrl})` : 'none',
+            backgroundColor: !groupInfo?.coverUrl ? 'hsl(var(--primary) / 0.1)' : '',
+          }"
+        >
+          <div
+            v-if="!groupInfo?.coverUrl"
+            class="absolute inset-0 bg-linear-to-r from-blue-600/20 via-indigo-500/20 to-purple-500/20"
+          ></div>
+        </div>
 
-            <div class="flex flex-wrap gap-2">
-              <Button variant="outline" @click="openMyNicknameDialog">设置我的群昵称</Button>
-              <Button v-if="canEditGroup" variant="outline" @click="openEditDialog">编辑群资料</Button>
-              <Button v-if="canInvite" @click="inviteDialogOpen = true">
-                <UserPlus class="mr-2 h-4 w-4" />邀请成员
-              </Button>
-            </div>
-            </div>
-          </CardContent>
-        </Card>
+        
+        <div class="max-w-5xl mx-auto px-6 -mt-16 relative pb-10" :id="SECTION_IDS.overview">
+          <div class="bg-card border rounded-3xl p-8 shadow-2xl">
+            <div class="flex flex-col md:flex-row gap-8 items-start">
+              
+              <div class="relative group mx-auto md:mx-0 shrink-0">
+                <Avatar
+                  class="h-36 w-36 border-4 border-background shadow-xl hover:scale-105 transition-transform"
+                >
+                  <AvatarImage :src="groupInfo?.avatar || ''" />
+                  <AvatarFallback class="text-4xl bg-primary text-primary-foreground"
+                    >群</AvatarFallback
+                  >
+                </Avatar>
+              </div>
 
-        <div class="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
-          <Card :id="SECTION_IDS.members">
-            <CardHeader>
-              <CardTitle>成员列表</CardTitle>
-            </CardHeader>
-            <CardContent class="space-y-3">
-              <div
-                v-for="member in members"
-                :key="member.userId"
-                class="flex flex-col gap-3 rounded-lg border p-3 xl:flex-row xl:items-center"
-              >
-                <div class="flex min-w-0 flex-1 items-center gap-3">
-                  <Avatar class="h-10 w-10">
-                    <AvatarImage :src="member.avatar || ''" />
-                    <AvatarFallback>{{ memberDisplayName(member).slice(0, 1) }}</AvatarFallback>
-                  </Avatar>
-                  <div class="min-w-0 flex-1">
-                    <div class="flex flex-wrap items-center gap-2">
-                      <span class="truncate text-sm font-medium">{{ memberDisplayName(member) }}</span>
-                      <Badge v-if="isOwnerMember(member)" variant="secondary">
-                        群主
-                      </Badge>
+              
+              <div class="flex-1 space-y-6 w-full mt-2">
+                <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                  <div class="space-y-1.5 text-center md:text-left">
+                    <div class="flex items-center justify-center md:justify-start gap-2 flex-wrap">
+                      <h1 class="text-3xl font-bold tracking-tight">{{ groupInfo?.name }}</h1>
+                      <Badge variant="secondary" class="h-5">{{ groupInfo?.memberCount }} 人</Badge>
+                      <Badge variant="outline" class="h-5 border-primary/30 text-primary">{{
+                        inviteAuditModeText(groupInfo?.inviteAuditMode)
+                      }}</Badge>
                     </div>
-                    <p class="text-xs text-muted-foreground">
-                      账号昵称：{{ member.nickname || member.username || member.userId }}
-                    </p>
-                    <p class="text-xs text-muted-foreground">头衔：{{ member.titleName || '未设置' }}</p>
+                  </div>
+
+                  <div class="flex gap-2 justify-center flex-wrap no-drag">
+                    <Button
+                      variant="outline"
+                      @click="openMyNicknameDialog"
+                      class="rounded-xl h-10 px-4"
+                    >
+                      设置群昵称
+                    </Button>
+                    <Button
+                      v-if="canEditGroup"
+                      variant="outline"
+                      @click="openEditDialog"
+                      class="rounded-xl h-10 px-4"
+                    >
+                      <Pencil class="mr-2 h-4 w-4" />编辑群资料
+                    </Button>
+                    <Button
+                      v-if="canInvite"
+                      class="rounded-xl gap-2 h-10 px-6"
+                      @click="inviteDialogOpen = true"
+                    >
+                      <UserPlus class="h-4 w-4" />邀请成员
+                    </Button>
                   </div>
                 </div>
 
-                <div class="flex flex-wrap gap-2 xl:justify-end">
-                  <Button
-                    v-if="member.userId === myUserId || canEditOthersNickname"
-                    variant="outline"
-                    size="sm"
-                    @click="openNicknameDialog(member)"
-                  >
-                    <Pencil class="mr-1 h-3.5 w-3.5" />群昵称
-                  </Button>
+                <Separator />
 
-                  <Select
-                    v-if="canAssignTitle && !isOwnerMember(member)"
-                    :model-value="member.titleId"
-                    @update:model-value="(value) => value && updateTitleForMember(member, String(value))"
-                  >
-                    <SelectTrigger class="h-8 w-36">
-                      <SelectValue placeholder="设置头衔" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem v-for="title in sortedTitles" :key="title.id" :value="title.id">
-                        {{ title.name }}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Button
-                    v-if="canRemoveMember && !isOwnerMember(member)"
-                    variant="destructive"
-                    size="sm"
-                    @click="removeMember(member)"
-                  >
-                    <Trash2 class="mr-1 h-3.5 w-3.5" />移除
-                  </Button>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
+                  <InfoItem
+                    class="col-span-full"
+                    :icon="Info"
+                    label="群公告"
+                    :value="groupInfo?.notice"
+                    :is-self="true"
+                    placeholder="暂无群公告"
+                  />
+                  <InfoItem
+                    :icon="ShieldCheck"
+                    label="我的头衔"
+                    :value="groupInfo?.myTitleName || '未设置'"
+                    :is-self="true"
+                  />
+                  <InfoItem
+                    :icon="MessageSquare"
+                    label="我的群昵称"
+                    :value="groupInfo?.myNicknameInGroup || '未设置'"
+                    :is-self="true"
+                  />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <div class="space-y-6">
-            <Card :id="SECTION_IDS.titles">
-              <CardHeader class="flex flex-row items-center justify-between">
-                <CardTitle>头衔权限</CardTitle>
-                <Button v-if="canManageTitles" size="sm" @click="openCreateTitle">新建头衔</Button>
-              </CardHeader>
-              <CardContent class="space-y-3">
-                <div v-for="title in sortedTitles" :key="title.id" class="rounded-lg border p-3">
-                  <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div class="flex items-center gap-2">
-                        <span class="font-medium">{{ title.name }}</span>
-                        <Badge v-if="title.isDefault" variant="secondary">默认</Badge>
+          
+          <div class="mt-8 grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6">
+            
+            <div class="space-y-6">
+              <ProfileSection :id="SECTION_IDS.members" title="成员列表" :icon="Users">
+                <div class="space-y-3 mt-4">
+                  <div
+                    v-for="member in members"
+                    :key="member.userId"
+                    class="flex flex-col gap-3 rounded-xl border border-border/50 p-3 xl:flex-row xl:items-center hover:bg-muted/50 transition-colors"
+                  >
+                    <div class="flex min-w-0 flex-1 items-center gap-3">
+                      <Avatar class="h-10 w-10">
+                        <AvatarImage :src="member.avatar || ''" />
+                        <AvatarFallback>{{ memberDisplayName(member).slice(0, 1) }}</AvatarFallback>
+                      </Avatar>
+                      <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <span class="truncate text-sm font-medium">{{
+                            memberDisplayName(member)
+                          }}</span>
+                          <Badge v-if="isOwnerMember(member)" variant="secondary">群主</Badge>
+                        </div>
+                        <p class="text-xs text-muted-foreground mt-0.5">
+                          帐号：{{ member.nickname || member.username || member.userId }}
+                        </p>
+                        <p class="text-xs text-muted-foreground font-medium mt-0.5">
+                          头衔：{{ member.titleName || '未设置' }}
+                        </p>
                       </div>
-                      <p class="text-xs text-muted-foreground">{{ title.memberCount }} 人使用</p>
                     </div>
-                    <div class="flex flex-wrap gap-2">
+
+                    <div class="flex flex-wrap gap-2 xl:justify-end">
                       <Button
-                        v-if="canManageTitles && !title.isDefault"
+                        v-if="member.userId === myUserId || canEditOthersNickname"
                         variant="outline"
                         size="sm"
-                        @click="setDefaultTitle(title.id)"
+                        @click="openNicknameDialog(member)"
+                        class="rounded-lg h-8"
                       >
-                        设为默认
+                        <Pencil class="mr-1 h-3 w-3" />群昵称
                       </Button>
-                      <Button v-if="canManageTitles" variant="outline" size="sm" @click="openEditTitle(title)">
-                        编辑
-                      </Button>
+
+                      <Select
+                        v-if="canAssignTitle && !isOwnerMember(member)"
+                        :model-value="member.titleId"
+                        @update:model-value="
+                          (value) => value && updateTitleForMember(member, String(value))
+                        "
+                      >
+                        <SelectTrigger class="h-8 w-28 rounded-lg text-xs">
+                          <SelectValue placeholder="设置头衔" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem
+                            v-for="title in sortedTitles"
+                            :key="title.id"
+                            :value="title.id"
+                          >
+                            {{ title.name }}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+
                       <Button
-                        v-if="canManageTitles && !title.isDefault"
+                        v-if="canRemoveMember && !isOwnerMember(member)"
                         variant="destructive"
                         size="sm"
-                        @click="deleteTitle(title.id)"
+                        @click="removeMember(member)"
+                        class="rounded-lg h-8"
                       >
-                        删除
+                        <Trash2 class="mr-1 h-3 w-3" />移除
                       </Button>
                     </div>
                   </div>
-                  <div class="mt-3 flex flex-wrap gap-2">
-                    <Badge v-for="permission in title.permissions" :key="permission" variant="outline">
-                      {{ permissionLabels[permission] || permission }}
-                    </Badge>
+                </div>
+              </ProfileSection>
+            </div>
+
+            
+            <div class="space-y-6">
+              <ProfileSection title="我的权限" :icon="ShieldCheck">
+                <div class="flex flex-wrap gap-2 mt-4">
+                  <Badge
+                    v-for="permission in groupInfo.myPermissions"
+                    :key="permission"
+                    variant="secondary"
+                    class="rounded-md"
+                  >
+                    {{ permissionLabels[permission] || permission }}
+                  </Badge>
+                  <p v-if="!groupInfo.myPermissions?.length" class="text-xs text-muted-foreground">
+                    无特殊权限
+                  </p>
+                </div>
+              </ProfileSection>
+
+              <ProfileSection
+                v-if="canReview"
+                :id="SECTION_IDS.review"
+                title="待审批列表"
+                :icon="Bell"
+              >
+                <div class="space-y-3 mt-4">
+                  <div
+                    v-for="request in visibleJoinRequests"
+                    :key="request.id"
+                    class="rounded-xl border border-border/50 p-3 hover:bg-muted/50 transition-colors"
+                  >
+                    <div class="flex flex-col gap-3">
+                      <div class="min-w-0 space-y-1">
+                        <div class="flex items-center gap-2">
+                          <Badge variant="outline" class="text-[10px] px-1.5 py-0">
+                            {{ request.type === 'INVITE' ? '邀请入群' : '申请入群' }}
+                          </Badge>
+                        </div>
+                        <p class="text-xs text-muted-foreground mt-2">
+                          发起人：{{
+                            request.fromUser?.nickname || request.fromUser?.username || '-'
+                          }}
+                          <template v-if="request.targetUser">
+                            <br />目标：{{
+                              request.targetUser.nickname || request.targetUser.username || '-'
+                            }}
+                          </template>
+                        </p>
+                        <p class="text-xs text-muted-foreground">
+                          理由：{{ request.reason || '无' }}
+                        </p>
+                      </div>
+                      <div class="flex gap-2 justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          class="h-7 text-xs rounded-lg"
+                          @click="auditRequest(request.id, false)"
+                          >拒绝</Button
+                        >
+                        <Button
+                          size="sm"
+                          class="h-7 text-xs rounded-lg"
+                          @click="auditRequest(request.id, true)"
+                          >通过</Button
+                        >
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>群文件配置</CardTitle>
-              </CardHeader>
-              <CardContent class="space-y-3">
-                <div class="grid gap-2">
-                  <label class="text-xs text-muted-foreground">总容量 (MB)</label>
-                  <Input v-model.number="fileConfigForm.fileCapacityMb" type="number" min="1" />
+                  <p
+                    v-if="visibleJoinRequests.length === 0"
+                    class="text-sm text-muted-foreground text-center py-4"
+                  >
+                    暂无待审批记录
+                  </p>
                 </div>
-                <div class="grid gap-2">
-                  <label class="text-xs text-muted-foreground">超大文件阈值 (MB)</label>
-                  <Input v-model.number="fileConfigForm.oversizeThresholdMb" type="number" min="1" />
-                </div>
-                <div class="grid gap-2">
-                  <label class="text-xs text-muted-foreground">临时文件过期天数</label>
-                  <Input v-model.number="fileConfigForm.tempExpireDays" type="number" min="1" />
-                </div>
-                <p class="text-xs text-muted-foreground">
-                  当前已使用：{{ groupInfo.usedStorageBytes || 0 }} bytes
-                </p>
-                <Button
-                  v-if="canManageGroupFileStorage"
-                  size="sm"
-                  :disabled="saving"
-                  @click="saveGroupFileConfig"
-                >
-                  {{ saving ? '保存中...' : '保存群文件配置' }}
-                </Button>
-                <p v-else class="text-xs text-muted-foreground">你暂无修改群文件配置权限</p>
-              </CardContent>
-            </Card>
+              </ProfileSection>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>我的权限</CardTitle>
-              </CardHeader>
-              <CardContent class="flex flex-wrap gap-2">
-                <Badge v-for="permission in groupInfo.myPermissions" :key="permission" variant="secondary">
-                  {{ permissionLabels[permission] || permission }}
-                </Badge>
-              </CardContent>
-            </Card>
-
-            <Card v-if="canReview" :id="SECTION_IDS.review">
-              <CardHeader>
-                <CardTitle>待审批列表</CardTitle>
-              </CardHeader>
-              <CardContent class="space-y-3">
+              <ProfileSection
+                :id="SECTION_IDS.titles"
+                title="头衔权限"
+                :icon="ShieldCheck"
+                :show-action="canManageTitles"
+                action-text="新建头衔"
+                @action="openCreateTitle"
+              >
                 <div
-                  v-for="request in visibleJoinRequests"
-                  :key="request.id"
-                  class="rounded-lg border p-3"
+                  v-if="canManageTitles"
+                  class="mb-3 mt-4 flex items-center justify-end"
                 >
-                  <div class="flex items-center justify-between gap-3">
-                    <div class="min-w-0 space-y-1">
-                      <p class="text-sm font-medium">
-                        {{ request.type === 'INVITE' ? '邀请入群' : '申请入群' }}
-                      </p>
-                      <p class="text-xs text-muted-foreground">
-                        发起人：{{ request.fromUser?.nickname || request.fromUser?.username || '-' }}
-                        <template v-if="request.targetUser">
-                          · 目标：{{ request.targetUser.nickname || request.targetUser.username || '-' }}
-                        </template>
-                      </p>
-                      <p class="text-xs text-muted-foreground">理由：{{ request.reason || '无' }}</p>
+                  <Button
+                    size="sm"
+                    class="h-7 rounded-lg text-xs"
+                    :disabled="!titleSortDirty"
+                    @click="saveTitleOrder"
+                  >
+                    保存排序
+                  </Button>
+                </div>
+                <div class="space-y-3 mt-4">
+                  <div
+                    v-for="title in sortedTitles"
+                    :key="title.id"
+                    class="rounded-xl border border-border/50 p-3 hover:bg-muted/50 transition-colors"
+                    :class="canManageTitles && !isOwnerTitle(title) ? 'cursor-move' : ''"
+                    :draggable="canManageTitles && !isOwnerTitle(title)"
+                    @dragstart="handleTitleDragStart(title.id)"
+                    @dragover.prevent
+                    @drop="handleTitleDrop(title.id)"
+                  >
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div class="flex items-center gap-2">
+                          <span class="text-sm font-medium">{{ title.name }}</span>
+                          <Badge
+                            v-if="isOwnerTitle(title)"
+                            variant="outline"
+                            class="text-[10px] px-1.5 py-0 h-4"
+                            >群主</Badge
+                          >
+                          <Badge
+                            v-if="title.isDefault"
+                            variant="secondary"
+                            class="text-[10px] px-1.5 py-0 h-4"
+                            >默认</Badge
+                          >
+                        </div>
+                        <p class="text-[10px] text-muted-foreground mt-0.5">
+                          {{ title.memberCount }} 人使用
+                        </p>
+                      </div>
+                      <div class="flex gap-2">
+                        <Button
+                          v-if="canManageTitles && !isOwnerTitle(title)"
+                          variant="ghost"
+                          size="sm"
+                          class="h-6 px-2 text-[10px]"
+                          @click="moveTitle(title.id, -1)"
+                        >
+                          <ArrowUp class="h-3 w-3" />
+                        </Button>
+                        <Button
+                          v-if="canManageTitles && !isOwnerTitle(title)"
+                          variant="ghost"
+                          size="sm"
+                          class="h-6 px-2 text-[10px]"
+                          @click="moveTitle(title.id, 1)"
+                        >
+                          <ArrowDown class="h-3 w-3" />
+                        </Button>
+                        <Button
+                          v-if="canManageTitles && !title.isDefault && !isOwnerTitle(title)"
+                          variant="ghost"
+                          size="sm"
+                          class="h-6 px-2 text-[10px]"
+                          @click="setDefaultTitle(title.id)"
+                        >
+                          设为默认
+                        </Button>
+                        <Button
+                          v-if="canManageTitles && !isOwnerTitle(title)"
+                          variant="ghost"
+                          size="sm"
+                          class="h-6 px-2 text-[10px]"
+                          @click="openEditTitle(title)"
+                        >
+                          设置
+                        </Button>
+                        <Button
+                          v-if="canManageTitles && !title.isDefault && !isOwnerTitle(title)"
+                          variant="ghost"
+                          size="sm"
+                          class="h-6 px-2 text-[10px] text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                          @click="deleteTitle(title.id)"
+                        >
+                          删除
+                        </Button>
+                      </div>
                     </div>
-                    <div class="flex gap-2">
-                      <Button size="sm" variant="outline" @click="auditRequest(request.id, false)">拒绝</Button>
-                      <Button size="sm" @click="auditRequest(request.id, true)">通过</Button>
+                    <div class="mt-3 flex flex-wrap gap-1">
+                      <Badge
+                        v-for="permission in title.permissions"
+                        :key="permission"
+                        variant="outline"
+                        class="text-[9px] font-normal px-1 py-0 h-4 border-muted-foreground/30"
+                      >
+                        {{ permissionLabels[permission] || permission }}
+                      </Badge>
                     </div>
                   </div>
                 </div>
+              </ProfileSection>
 
-                <p v-if="visibleJoinRequests.length === 0" class="text-sm text-muted-foreground">
-                  暂无待审批记录
-                </p>
-              </CardContent>
-            </Card>
+              <ProfileSection title="群文件配置" :icon="Folder">
+                <div class="space-y-4 mt-4">
+                  <div class="grid gap-1">
+                    <label class="text-xs font-medium text-muted-foreground">总容量 (MB)</label>
+                    <Input
+                      v-model.number="fileConfigForm.fileCapacityMb"
+                      type="number"
+                      min="1"
+                      class="h-8 text-sm rounded-lg"
+                    />
+                  </div>
+                  <div class="grid gap-1">
+                    <label class="text-xs font-medium text-muted-foreground"
+                      >超大文件阈值 (MB)</label
+                    >
+                    <Input
+                      v-model.number="fileConfigForm.oversizeThresholdMb"
+                      type="number"
+                      min="1"
+                      class="h-8 text-sm rounded-lg"
+                    />
+                  </div>
+                  <div class="grid gap-1">
+                    <label class="text-xs font-medium text-muted-foreground"
+                      >临时文件过期时长 (天)</label
+                    >
+                    <Input
+                      v-model.number="fileConfigForm.tempExpireDays"
+                      type="number"
+                      min="1"
+                      class="h-8 text-sm rounded-lg"
+                    />
+                  </div>
+
+                  <div class="flex items-center justify-between pt-2">
+                    <p class="text-[10px] text-muted-foreground">
+                      已用容量：{{ groupInfo.usedStorageBytes || 0 }} B
+                    </p>
+                    <Button
+                      v-if="canManageGroupFileStorage"
+                      size="sm"
+                      class="h-8 rounded-lg text-xs"
+                      :disabled="saving"
+                      @click="saveGroupFileConfig"
+                    >
+                      {{ saving ? '保存中...' : '保存配置' }}
+                    </Button>
+                  </div>
+                  <p v-if="!canManageGroupFileStorage" class="text-xs text-muted-foreground">
+                    暂无修改配置权限
+                  </p>
+                </div>
+              </ProfileSection>
+            </div>
           </div>
         </div>
       </template>
     </div>
 
+    <!-- Modals -->
     <Dialog v-model:open="editDialogOpen">
       <DialogContent class="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>编辑群资料</DialogTitle>
           <DialogDescription>更新群名称、公告和审批模式。</DialogDescription>
+
         </DialogHeader>
         <div class="space-y-4">
           <div class="space-y-2">
             <label class="text-sm font-medium">群名称</label>
+
             <Input v-model="groupForm.name" maxlength="50" />
           </div>
           <div class="space-y-2">
@@ -722,7 +1017,8 @@ watch(
                 <SelectValue placeholder="选择审批模式" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="0">不需要审批</SelectItem>
+                <SelectItem value="0">
+                不需要审批</SelectItem>
                 <SelectItem value="1">邀请需要审批</SelectItem>
                 <SelectItem value="2">申请需要审批</SelectItem>
                 <SelectItem value="3">邀请和申请都需要审批</SelectItem>
@@ -766,7 +1062,9 @@ watch(
         </div>
         <DialogFooter>
           <Button variant="outline" @click="inviteDialogOpen = false">取消</Button>
-          <Button :disabled="saving" @click="sendInvite">{{ saving ? '提交中...' : '提交邀请' }}</Button>
+          <Button :disabled="saving" @click="sendInvite">{{
+            saving ? '提交中...' : '提交邀请'
+          }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -782,7 +1080,9 @@ watch(
         <Input v-model="nicknameValue" maxlength="32" placeholder="输入群昵称，留空则清除" />
         <DialogFooter>
           <Button variant="outline" @click="nicknameDialogOpen = false">取消</Button>
-          <Button :disabled="saving" @click="saveNickname">{{ saving ? '保存中...' : '保存' }}</Button>
+          <Button :disabled="saving" @click="saveNickname">{{
+            saving ? '保存中...' : '保存'
+          }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -801,28 +1101,28 @@ watch(
               <Input v-model="titleForm.name" maxlength="32" placeholder="输入头衔名称" />
             </div>
             <div class="space-y-2">
-              <label class="text-sm font-medium">排序</label>
+              <label class="text-sm font-medium">排序号（越小越靠前）</label>
               <Input v-model.number="titleForm.sort" type="number" min="0" />
             </div>
           </div>
 
           <div class="space-y-2">
-            <label class="text-sm font-medium">权限</label>
+            <label class="text-sm font-medium">包含权限</label>
             <div class="flex flex-wrap gap-2 rounded-lg border p-3">
               <button
-                v-for="permission in Object.keys(permissionLabels) as GroupPermission[]"
+                v-for="permission in Object.keys(permissionLabels)"
                 :key="permission"
                 type="button"
                 class="rounded-full border px-3 py-1 text-sm transition-colors"
                 :class="
-                  titleForm.permissions.includes(permission)
+                  titleForm.permissions.includes(permission as GroupPermission)
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-border text-muted-foreground hover:bg-muted'
                 "
                 :disabled="permission === 'GROUP_VIEW'"
-                @click="togglePermission(permission)"
+                @click="togglePermission(permission as GroupPermission)"
               >
-                {{ permissionLabels[permission] }}
+                {{ permissionLabels[permission as GroupPermission] }}
               </button>
             </div>
           </div>
@@ -838,4 +1138,5 @@ watch(
     </Dialog>
   </div>
 </template>
+
 

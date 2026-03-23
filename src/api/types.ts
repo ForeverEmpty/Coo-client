@@ -195,7 +195,6 @@ export type GroupPermission =
   | 'GROUP_REMOVE_MEMBER'
   | 'GROUP_ASSIGN_TITLE'
   | 'GROUP_MANAGE_TITLE'
-  | 'GROUP_SET_SUPER_ADMIN'
   | 'GROUP_TRANSFER_OWNER'
   | 'GROUP_EDIT_MEMBER_NICKNAME'
   | 'GROUP_FILE_VIEW'
@@ -213,7 +212,6 @@ export interface GroupListItem {
   notice?: string
   remark?: string
   memberCount: number
-  myRole?: number
   myTitleId?: string
   myTitleName?: string
   myNicknameInGroup?: string
@@ -230,7 +228,6 @@ export interface GroupInfo {
   inviteAuditMode: number
   defaultTitleId?: string
   memberCount: number
-  myRole?: number
   myTitleId?: string
   myTitleName?: string
   myNicknameInGroup?: string
@@ -250,12 +247,12 @@ export interface GroupMember {
   nicknameInGroup?: string
   titleId?: string
   titleName?: string
-  role: number
   permissions: GroupPermission[]
 }
 
 export interface GroupTitle {
   id: string
+  systemKey?: string
   name: string
   isDefault: boolean
   sort: number

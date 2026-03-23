@@ -12,15 +12,19 @@ import {
   FolderPlus,
   RefreshCw,
   Upload,
+  Minus,
+  X,
 } from 'lucide-vue-next'
 import { socialApi } from '@/api/social'
 import type { GroupFileConfig, GroupFileFolder, GroupFileItem, GroupInfo } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
+import { usePlatform } from '@/composables/usePlatform'
 
 const route = useRoute()
 const router = useRouter()
+const { p, isElectron } = usePlatform()
 
 const PAGE_SIZE = 30
 
@@ -46,6 +50,16 @@ const currentFolderName = computed(() => {
   if (folderStack.value.length === 0) return '根目录'
   return folderStack.value[folderStack.value.length - 1]?.name || '根目录'
 })
+
+const handleMinimizeWindow = () => {
+  if (!isElectron) return
+  p.app.minimize()
+}
+
+const handleCloseWindow = () => {
+  if (!isElectron) return
+  p.app.close()
+}
 
 const formatFileSize = (size?: number) => {
   if (!size || Number.isNaN(size)) return '未知大小'
@@ -222,11 +236,38 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="h-full overflow-hidden bg-background">
-    <div class="mx-auto flex h-full w-full max-w-6xl flex-col px-4 py-4 md:px-6">
+  <div class="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+    <div
+      v-if="isElectron"
+      class="flex h-10 shrink-0 items-center justify-between border-b bg-background/95 px-2"
+      style="-webkit-app-region: drag"
+    >
+      <div class="truncate px-2 text-xs text-muted-foreground">群文件</div>
+      <div class="flex items-center gap-1" style="-webkit-app-region: no-drag">
+        <Button variant="ghost" size="icon" class="h-8 w-8" @click="handleMinimizeWindow">
+          <Minus class="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          class="h-8 w-8 hover:bg-destructive hover:text-destructive-foreground"
+          @click="handleCloseWindow"
+        >
+          <X class="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+
+    <div class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-4 py-4 md:px-6">
       <header class="mb-4 flex items-center justify-between">
         <div class="flex min-w-0 items-center gap-2">
-          <Button variant="ghost" size="icon" class="h-8 w-8" @click="router.back()">
+          <Button
+            v-if="!isElectron"
+            variant="ghost"
+            size="icon"
+            class="h-8 w-8"
+            @click="router.back()"
+          >
             <ArrowLeft class="h-4 w-4" />
           </Button>
           <div class="min-w-0">

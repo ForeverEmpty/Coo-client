@@ -56,10 +56,7 @@ const groupMemberCount = computed(() => {
 
 const isGroupOwner = computed(() => {
   const currentUserId = String(userStore.userInfo?.id || '')
-  if (props.groupInfo?.ownerId && currentUserId) {
-    return String(props.groupInfo.ownerId) === currentUserId
-  }
-  return Number(props.groupInfo?.myRole || 0) === 1
+  return !!props.groupInfo?.ownerId && !!currentUserId && String(props.groupInfo.ownerId) === currentUserId
 })
 const groupDisplayName = computed(
   () => props.groupInfo?.remark || props.groupInfo?.name || props.title || '群聊',
@@ -209,3 +206,4 @@ const groupDisplayId = computed(() => props.groupInfo?.id || '')
     </Button>
   </section>
 </template>
+

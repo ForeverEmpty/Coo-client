@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
@@ -58,7 +58,7 @@ const props = defineProps<{
   myAvatar?: string
   peerAvatar?: string
   peerName?: string
-  groupMemberMap?: Record<string, { name: string; avatar?: string; role?: number }>
+  groupMemberMap?: Record<string, { name: string; avatar?: string }>
   currentUserGroupPermissions?: string[]
   historyLoading?: boolean
   historyHasMore?: boolean
@@ -191,7 +191,6 @@ const getSenderMeta = (message: ChatUiMessage) => {
     return {
       name: mine?.name || '我',
       avatar: props.myAvatar || mine?.avatar || '',
-      role: mine?.role,
     }
   }
 
@@ -200,14 +199,12 @@ const getSenderMeta = (message: ChatUiMessage) => {
     return {
       name: member?.name || message.fromId || '未知用户',
       avatar: member?.avatar || '',
-      role: member?.role,
     }
   }
 
   return {
     name: props.peerName || message.fromId || '对方',
     avatar: props.peerAvatar || '',
-    role: undefined,
   }
 }
 
@@ -1098,3 +1095,4 @@ onBeforeUnmount(() => {
     />
   </div>
 </template>
+
